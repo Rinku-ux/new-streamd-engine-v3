@@ -74,31 +74,45 @@ async def do_sync_headless():
     
     # Fetch full client list (q993)
     log(f"Fetching client list from Redash (Query {q993})...")
-    all_clients = await rc.fetch_query(q993)
-    total_raw = len(all_clients)
+    raw_clients = await rc.fetch_query(q993)
     
-    # --- Incremental Sync Logic: Skip already synced clients ---
+    # --- Deduplicate clients by client_id ---
+    seen_ids = set()
+    all_clients = []
+    for c in raw_clients:
+        cid = str(c.get("client_id") or "")
+        if cid and cid not in seen_ids:
+            seen_ids.add(cid)
+            all_clients.append(c)
+    
+    total_unique = len(all_clients)
+    log(f"Fetched {len(raw_clients)} rows. Found {total_unique} unique clients.")
+    
+    # --- Incremental Sync Logic: Skip clients who already have the latest month ---
     try:
         engine.initialize_db()
-        # Local data might be in ZIP or Parquet, ensure it's loaded as much as possible
-        if os.path.exists(engine.master_parquet):
-            engine.reload_master_data()
+        # Ensure local data is loaded
+        engine.reload_master_data()
         
-        # Check existing clients in DB
-        existing_clients = set()
+        # Check existing clients who HAVE data for the end_date month
+        up_to_date_clients = set()
         tables = [t[0] for t in engine.conn.execute("SHOW TABLES").fetchall()]
         if "master_data" in tables:
-            rows = engine.conn.execute('SELECT DISTINCT "クライアントID" FROM master_data').fetchall()
-            existing_clients = {str(r[0]) for r in rows if r[0]}
-            log(f"Found {len(existing_clients)} clients already in database.")
+            # We skip only if the client has data for the TARGET end_date
+            rows = engine.conn.execute(
+                'SELECT DISTINCT "クライアントID" FROM master_data WHERE "処理月" = ?',
+                (end_date,)
+            ).fetchall()
+            up_to_date_clients = {str(r[0]) for r in rows if r[0]}
+            log(f"Found {len(up_to_date_clients)} clients already up-to-date for {end_date}.")
         
         # Filter clients
-        clients_to_process = [c for c in all_clients if str(c.get("client_id")) not in existing_clients]
-        skip_count = total_raw - len(clients_to_process)
+        clients_to_process = [c for c in all_clients if str(c.get("client_id")) not in up_to_date_clients]
+        skip_count = total_unique - len(clients_to_process)
         if skip_count > 0:
-            log(f"Skipping {skip_count} already synced clients. Remaining: {len(clients_to_process)}")
+            log(f"Skipping {skip_count} up-to-date clients. Remaining: {len(clients_to_process)}")
         else:
-            log(f"No clients to skip. Proceeding with all {len(clients_to_process)} clients.")
+            log(f"No clients to skip. Proceeding with {len(clients_to_process)} clients.")
             
     except Exception as e:
         log(f"Warning: Failed to check incremental status, proceeding with full sync: {e}")
