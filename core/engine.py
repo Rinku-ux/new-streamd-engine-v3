@@ -35,6 +35,7 @@ class DataEngine:
         if not url:
             return False
 
+        is_zip = url.lower().split('?')[0].endswith('.zip')
         target_path = self.drilldown_csv if is_drilldown else self.master_csv
         table_name = "drilldown_data" if is_drilldown else "master_data"
 
@@ -42,8 +43,8 @@ class DataEngine:
             if progress_callback:
                 progress_callback(f"Downloading from {url}...")
             
-            # Use a temporary file for download to avoid corrupting existing data on failure
-            fd, temp_path = tempfile.mkstemp(suffix=".csv")
+            # Use a temporary file for download
+            fd, temp_path = tempfile.mkstemp(suffix=".zip" if is_zip else ".csv")
             os.close(fd)
 
             try:
@@ -54,7 +55,13 @@ class DataEngine:
                     for chunk in response.iter_content(chunk_size=8192):
                         f.write(chunk)
                 
-                # SCHEMA VALIDATION
+                if is_zip:
+                    # SPECIAL CASE: ZIP archive handling
+                    if progress_callback: progress_callback("Extracting data from ZIP...")
+                    success = self.load_from_zip(temp_path, progress_callback)
+                    return success
+
+                # SCHEMA VALIDATION (for CSV only)
                 if progress_callback: progress_callback("Validating schema...")
                 
                 with open(temp_path, 'r', encoding='utf-8-sig') as f:
@@ -164,7 +171,13 @@ class DataEngine:
         if table_name == "master_data":
             self._row_count = count
             self._columns = [col[0] for col in self.conn.execute(f"DESCRIBE {table_name}").fetchall()]
-            self._data_hash = f"{count}_{os.path.getmtime(file_path)}"
+            mtime = datetime.now().timestamp()
+            try:
+                if os.path.exists(file_path):
+                    mtime = os.path.getmtime(file_path)
+            except:
+                pass
+            self._data_hash = f"{count}_{mtime}"
         else:
             self._drilldown_row_count = count
 
@@ -223,7 +236,7 @@ class DataEngine:
             progress_callback(f"Fallback: loading via pandas...")
         
         df = pd.read_csv(csv_path, dtype=str, encoding='utf-8-sig', low_memory=False)
-        df = df.astype(str).replace('nan', '')
+        df = df.astype(str).replace(['nan', 'None'], '')
 
         self.conn.register("__tmp_df", df)
         self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")

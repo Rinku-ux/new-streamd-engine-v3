@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QStackedWidget,
-                               QLabel, QVBoxLayout, QProgressBar, QToolTip)
+                               QLabel, QVBoxLayout, QProgressBar, QToolTip, QInputDialog, QLineEdit, QMessageBox)
 from PySide6.QtCore import Qt, QThread, Signal, QTimer, QFileSystemWatcher
 from PySide6.QtGui import QFont
 import os
@@ -204,6 +204,7 @@ class MainWindow(QMainWindow):
         self.config = config
         self.engine = engine
         self._is_dark = config.get("theme", "dark") == "dark"
+        self._is_admin = False  # NEW: Admin mode state
         
         self.setWindowTitle("Streamd BI Native Engine")
         self.resize(1400, 850)
@@ -314,6 +315,26 @@ class MainWindow(QMainWindow):
         self._prevent_sleep(False)
         super().closeEvent(event)
 
+    def keyPressEvent(self, event):
+        """Handle global hotkeys."""
+        # Ctrl + Shift + L for Admin Mode
+        if (event.modifiers() & Qt.ControlModifier and 
+            event.modifiers() & Qt.ShiftModifier and 
+            event.key() == Qt.Key_L):
+            
+            pwd, ok = QInputDialog.getText(self, "管理者認証", "パスワードを入力してください:", QLineEdit.Password)
+            if ok and pwd == "Ring0#1102":
+                self._is_admin = True
+                QMessageBox.information(self, "認証成功", "管理者モードが有効になりました。設定画面のロックが解除されます。")
+                # Update settings view if initialized
+                if "settings" in self.views:
+                    self.views["settings"].set_admin_mode(True)
+            elif ok:
+                QMessageBox.warning(self, "認証失敗", "パスワードが正しくありません。")
+            return
+
+        super().keyPressEvent(event)
+
     def _setup_file_watcher(self):
         for path in [self.engine.master_csv, self.engine.drilldown_csv]:
             if os.path.exists(path):
@@ -368,6 +389,8 @@ class MainWindow(QMainWindow):
         self.views["sync"] = SyncView(self.config, self.engine)
         self.views["codemap"] = CodeMapView(self.config)
         self.views["settings"] = SettingsView(self.config)
+        self.views["settings"].set_admin_mode(self._is_admin)
+        self.views["settings"].settings_saved.connect(self._on_settings_saved)
         
         self.views["sync"].data_loaded.connect(self._on_data_reloaded)
         
@@ -383,6 +406,16 @@ class MainWindow(QMainWindow):
             self.content_stack.addWidget(view)
             
         self._views_initialized = True
+
+    def _on_settings_saved(self):
+        """Handle settings save by triggering a full data reload."""
+        print("[MAIN] Settings saved, triggering data reload...")
+        # Return to loading screen
+        self.content_stack.setCurrentWidget(self.loading_widget)
+        self.loading_pbar.setValue(0)
+        self.loading_status.setText("設定を反映中...")
+        # Re-run loader
+        self.load_data_async()
 
     def _on_data_reloaded(self):
         self._setup_file_watcher()

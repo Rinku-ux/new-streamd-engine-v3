@@ -56,11 +56,41 @@ async def do_sync_headless():
 
     rc = RedashClient(redash_url, redash_key)
     
-    log(f"Fetching client list (Query {q993})...")
+    # Fetch full client list (q993)
+    log(f"Fetching client list from Redash (Query {q993})...")
     all_clients = await rc.fetch_query(q993)
+    total_raw = len(all_clients)
+    
+    # --- Incremental Sync Logic: Skip already synced clients ---
+    try:
+        engine.initialize_db()
+        # Local data might be in ZIP or Parquet, ensure it's loaded as much as possible
+        if os.path.exists(engine.master_parquet):
+            engine.reload_master_data()
+        
+        # Check existing clients in DB
+        existing_clients = set()
+        tables = [t[0] for t in engine.conn.execute("SHOW TABLES").fetchall()]
+        if "master_data" in tables:
+            rows = engine.conn.execute('SELECT DISTINCT "クライアントID" FROM master_data').fetchall()
+            existing_clients = {str(r[0]) for r in rows if r[0]}
+            log(f"Found {len(existing_clients)} clients already in database.")
+        
+        # Filter clients
+        clients_to_process = [c for c in all_clients if str(c.get("client_id")) not in existing_clients]
+        skip_count = total_raw - len(clients_to_process)
+        if skip_count > 0:
+            log(f"Skipping {skip_count} already synced clients. Remaining: {len(clients_to_process)}")
+        else:
+            log(f"No clients to skip. Proceeding with all {len(clients_to_process)} clients.")
+            
+    except Exception as e:
+        log(f"Warning: Failed to check incremental status, proceeding with full sync: {e}")
+        clients_to_process = all_clients
+    # ---------------------------------------------------------
     
     # Apply Offset and Limit
-    clients = all_clients[sync_offset:]
+    clients = clients_to_process[sync_offset:]
     if sync_limit:
         clients = clients[:sync_limit]
         
@@ -157,7 +187,15 @@ async def do_sync_headless():
     engine.save_to_csv()
     engine.save_to_zip()
     
-    log(f"Sync complete. Total rows: Ranking={total_ranking}, Drilldown={total_dd}")
+    log(f"SYNC COMPLETE. Total Ranking: {total_ranking}, Total Drilldown: {total_dd}")
+    
+    # Signal if more work is needed (for self-chaining workflows)
+    has_more = len(clients_to_process) > sync_limit if sync_limit else False
+    if "GITHUB_OUTPUT" in os.environ:
+        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+            f.write(f"has_more={'true' if has_more else 'false'}\n")
+    if has_more:
+        log(f"--- NOTICE: {len(clients_to_process) - sync_limit} clients still pending. More runs needed. ---")
 
 if __name__ == "__main__":
     asyncio.run(do_sync_headless())

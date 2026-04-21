@@ -6,10 +6,12 @@ from PySide6.QtCore import Qt, QThread, Signal
 
 
 class SettingsView(QWidget):
+    settings_saved = Signal()
     def __init__(self, config, parent=None):
         super().__init__(parent)
         self.setObjectName("SettingsView")
         self.config = config
+        self._is_admin = False
         from core.updater import UpdateManager
         self.updater = UpdateManager(self)
 
@@ -35,37 +37,39 @@ class SettingsView(QWidget):
         layout.addWidget(subtitle)
 
         # ── Section 1: Redash Connection ──
-        layout.addWidget(self._section_header("🔗  Redash 接続設定"))
-
-        conn_frame = self._card_frame()
-        conn_layout = QFormLayout(conn_frame)
+        self.conn_header = self._section_header("🔗  Redash 接続設定")
+        layout.addWidget(self.conn_header)
+        
+        self.conn_frame = self._card_frame()
+        conn_layout = QFormLayout(self.conn_frame)
         conn_layout.setSpacing(14)
         conn_layout.setContentsMargins(20, 16, 20, 16)
-
+        
         self.url_input = self._input(self.config.get("url"), "https://redash.example.com")
         self.key_input = self._input(self.config.get("key"), "APIキーを入力")
         self.key_input.setEchoMode(QLineEdit.Password)
-
+        
         self._add_row(conn_layout, "Redash URL", self.url_input)
         self._add_row(conn_layout, "API キー", self.key_input)
-        layout.addWidget(conn_frame)
+        layout.addWidget(self.conn_frame)
 
         # ── Section 2: Query IDs ──
-        layout.addWidget(self._section_header("📋  クエリ設定"))
-
-        query_frame = self._card_frame()
-        query_layout = QFormLayout(query_frame)
+        self.query_header = self._section_header("📋  クエリ設定")
+        layout.addWidget(self.query_header)
+        
+        self.query_frame = self._card_frame()
+        query_layout = QFormLayout(self.query_frame)
         query_layout.setSpacing(14)
         query_layout.setContentsMargins(20, 16, 20, 16)
-
+        
         self.q993_input = self._input(self.config.get("q993"), "993")
         self.q994_input = self._input(self.config.get("q994"), "994")
         self.q1011_input = self._input(self.config.get("q1011"), "1011")
-
+        
         self._add_row(query_layout, "クエリID（クライアント一覧）", self.q993_input)
         self._add_row(query_layout, "クエリID（ランキング詳細）", self.q994_input)
         self._add_row(query_layout, "クエリID（ドリルダウン）", self.q1011_input)
-        layout.addWidget(query_frame)
+        layout.addWidget(self.query_frame)
 
         # ── Section 3: Drill-down Sync Parameters ──
         layout.addWidget(self._section_header("🔄  ドリルダウン同期パラメータ"))
@@ -128,22 +132,29 @@ class SettingsView(QWidget):
         src_layout = QFormLayout(src_frame)
         src_layout.setSpacing(14)
         src_layout.setContentsMargins(20, 16, 20, 16)
-
+        
         self.source_combo = QComboBox()
         self.source_combo.addItem("ローカルファイル (標準)", "local")
         self.source_combo.addItem("ウェブ参照 (GitHub / Google Drive)", "remote")
         
-        # Set current index based on config
         idx = self.source_combo.findData(self.config.get("data_source", "local"))
         if idx >= 0: self.source_combo.setCurrentIndex(idx)
         
+        self._add_row(src_layout, "データ取得モード", self.source_combo)
+        layout.addWidget(src_frame)
+        
+        # Remote URLs in its own frame for hiding
+        self.remote_url_frame = self._card_frame()
+        remote_url_layout = QFormLayout(self.remote_url_frame)
+        remote_url_layout.setSpacing(14)
+        remote_url_layout.setContentsMargins(20, 16, 20, 16)
+        
         self.ranking_url_input = self._input(self.config.get("remote_ranking_url"), "https://raw.githubusercontent.com/.../ranking.csv")
         self.dd_url_input = self._input(self.config.get("remote_drilldown_url"), "https://raw.githubusercontent.com/.../drilldown.csv")
-
-        self._add_row(src_layout, "データ取得モード", self.source_combo)
-        self._add_row(src_layout, "ランキング詳細 URL", self.ranking_url_input)
-        self._add_row(src_layout, "ドリルダウン URL", self.dd_url_input)
-        layout.addWidget(src_frame)
+        
+        self._add_row(remote_url_layout, "ランキング詳細 URL", self.ranking_url_input)
+        self._add_row(remote_url_layout, "ドリルダウン URL", self.dd_url_input)
+        layout.addWidget(self.remote_url_frame)
 
         # ── Save Button ──
         btn_layout = QHBoxLayout()
@@ -227,6 +238,7 @@ class SettingsView(QWidget):
             "remote_drilldown_url": self.dd_url_input.text().strip()
         }
         self.config.save(new_data)
+        self.settings_saved.emit()
 
         # Visual feedback
         self.save_btn.setText("✅  保存完了!")
@@ -242,6 +254,25 @@ class SettingsView(QWidget):
         self.save_btn.setObjectName("PrimaryBtn")  # Reset to default primary
         self.save_btn.style().unpolish(self.save_btn)
         self.save_btn.style().polish(self.save_btn)
+
+    def set_admin_mode(self, is_admin):
+        """Toggle visibility of sensitive settings."""
+        self._is_admin = is_admin
+        
+        # Toggle Visibility of Sensitive Sections
+        self.conn_header.setVisible(is_admin)
+        self.conn_frame.setVisible(is_admin)
+        
+        self.query_header.setVisible(is_admin)
+        self.query_frame.setVisible(is_admin)
+        
+        self.remote_url_frame.setVisible(is_admin)
+        
+        # Data Source Mode (Source Combo) remains ALWAYS visible and enabled
+        self.source_combo.setEnabled(True)
+        
+        # Mask API Key even when visible
+        self.key_input.setEchoMode(QLineEdit.Password)
 
     # ── Update Logic ──
     def _check_updates(self):

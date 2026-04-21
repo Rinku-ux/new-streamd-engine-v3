@@ -815,8 +815,8 @@ class DashboardView(QWidget):
 
         data = self.engine.query(
             'SELECT COUNT(DISTINCT "クライアントID") as total_clients, '
-            'SUM(CAST("対象仕訳数" AS INTEGER)) as total_vouchers, '
-            'SUM(CAST("全体正解件数" AS INTEGER)) as total_correct, '
+            'SUM(TRY_CAST("対象仕訳数" AS INTEGER)) as total_vouchers, '
+            'SUM(TRY_CAST("全体正解件数" AS INTEGER)) as total_correct, '
             'COUNT(*) as total_rows FROM master_data'
         )
         if not data:
@@ -834,8 +834,8 @@ class DashboardView(QWidget):
         try:
             trend_data = self.engine.query(
                 'SELECT "処理月", '
-                'SUM(CAST("対象仕訳数" AS INTEGER)) as t, '
-                'SUM(CAST("全体正解件数" AS INTEGER)) as c '
+                'SUM(TRY_CAST("対象仕訳数" AS INTEGER)) as t, '
+                'SUM(TRY_CAST("全体正解件数" AS INTEGER)) as c '
                 'FROM master_data WHERE "処理月" IS NOT NULL '
                 'GROUP BY "処理月" ORDER BY "処理月" DESC LIMIT 2'
             )
@@ -862,8 +862,8 @@ class DashboardView(QWidget):
         
         sql = (
             f'SELECT "処理月", '
-            f'SUM(CAST("{target_col}" AS INTEGER)) as total_target, '
-            f'SUM(CAST("{correct_col}" AS INTEGER)) as total_correct '
+            f'SUM(TRY_CAST("{target_col}" AS INTEGER)) as total_target, '
+            f'SUM(TRY_CAST("{correct_col}" AS INTEGER)) as total_correct '
             f'FROM master_data WHERE "処理月" IS NOT NULL {month_filter} '
             f'GROUP BY "処理月" ORDER BY "処理月"'
         )
@@ -947,8 +947,8 @@ class DashboardView(QWidget):
         
         sql = (
             f'SELECT "処理月", "証憑タイプ", '
-            f'SUM(CAST("{target_col}" AS INTEGER)) as total_target, '
-            f'SUM(CAST("{correct_col}" AS INTEGER)) as total_correct '
+            f'SUM(TRY_CAST("{target_col}" AS INTEGER)) as total_target, '
+            f'SUM(TRY_CAST("{correct_col}" AS INTEGER)) as total_correct '
             f'FROM master_data '
             f'WHERE "処理月" IS NOT NULL AND "証憑タイプ" IS NOT NULL {month_filter} '
             f'GROUP BY "処理月", "証憑タイプ" ORDER BY "処理月"'
@@ -1107,8 +1107,8 @@ class DashboardView(QWidget):
         month_filter = self._get_month_range_filter()
         agg_cols = []
         for _, _, target_col, correct_col in METRIC_DEFS_ORDERED:
-            agg_cols.append(f'SUM(CAST("{target_col}" AS INTEGER)) AS "t_{target_col}"')
-            agg_cols.append(f'SUM(CAST("{correct_col}" AS INTEGER)) AS "c_{correct_col}"')
+            agg_cols.append(f'SUM(TRY_CAST("{target_col}" AS INTEGER)) AS "t_{target_col}"')
+            agg_cols.append(f'SUM(TRY_CAST("{correct_col}" AS INTEGER)) AS "c_{correct_col}"')
             
         sql = (
             f'SELECT "処理月", {", ".join(agg_cols)} '
@@ -1261,8 +1261,8 @@ class DashboardView(QWidget):
         for _, metric_label, target_col, correct_col in METRIC_DEFS_ORDERED:
             sql = (
                 f'SELECT "処理月", '
-                f'SUM(CAST("{target_col}" AS INTEGER)) as total_target, '
-                f'SUM(CAST("{correct_col}" AS INTEGER)) as total_correct '
+                f'SUM(TRY_CAST("{target_col}" AS INTEGER)) as total_target, '
+                f'SUM(TRY_CAST("{correct_col}" AS INTEGER)) as total_correct '
                 f'FROM master_data '
                 f'WHERE "クライアントID" = \'{client_id}\' AND "処理月" IS NOT NULL {month_filter} '
                 f'GROUP BY "処理月" ORDER BY "処理月"'
@@ -1355,8 +1355,8 @@ class DashboardView(QWidget):
             month_filter = self._get_month_range_filter()
             sql = (
                 'SELECT "処理月", "証憑タイプ", '
-                'SUM(CAST("対象仕訳数" AS INTEGER)) as "対象仕訳数", '
-                'SUM(CAST("全体正解件数" AS INTEGER)) as "全体正解件数" '
+                'SUM(TRY_CAST("対象仕訳数" AS INTEGER)) as "対象仕訳数", '
+                'SUM(TRY_CAST("全体正解件数" AS INTEGER)) as "全体正解件数" '
                 f'FROM master_data WHERE "処理月" IS NOT NULL {month_filter} '
                 'GROUP BY "処理月", "証憑タイプ" ORDER BY "処理月", "証憑タイプ"'
             )

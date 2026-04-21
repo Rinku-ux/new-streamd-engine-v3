@@ -19,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,6 +35,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run Sync Script
+        id: sync_step
         env:
           REDASH_URL: ${{ secrets.REDASH_URL }}
           REDASH_KEY: ${{ secrets.REDASH_KEY }}
@@ -44,8 +46,8 @@ jobs:
           SYNC_END_DATE: '2026-12'
           SYNC_TARGET: 'full'
           SYNC_MODE: 'diff'
-          SYNC_LIMIT: ${{ github.event.inputs.sync_limit }}
-          SYNC_OFFSET: ${{ github.event.inputs.sync_offset }}
+          SYNC_LIMIT: ${{ github.event.inputs.sync_limit != 'None' && github.event.inputs.sync_limit || '300' }}
+          SYNC_OFFSET: ${{ github.event.inputs.sync_offset || '0' }}
         run: python sync_cli.py
 
       - name: Upload Sync Results
@@ -63,5 +65,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add streamdbi_data.zip
-          git commit -m "Auto-sync: Updated data ZIP $(date +'%Y-%m-%d')" || exit 0
+          git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')" || exit 0
           git push
+
+      - name: Trigger next run if more work remains
+        if: steps.sync_step.outputs.has_more == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Sync not finished. Triggering next chunk..."
+          gh workflow run nightly_sync.yml

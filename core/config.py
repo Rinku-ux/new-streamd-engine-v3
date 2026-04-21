@@ -6,19 +6,36 @@ class Config:
         self.config_path = config_path
         self.data = self._load()
 
+    def _crypt(self, data):
+        """A simple but non-trivial XOR + Base64 obfuscation."""
+        key = "STREAMD_BI_SECRET_KEY_2026"
+        import base64
+        if isinstance(data, str): # Decrypt
+            try:
+                decoded = base64.b64decode(data.encode('utf-8')).decode('utf-8')
+                return "".join(chr(ord(c) ^ ord(key[i % len(key)])) for i, c in enumerate(decoded))
+            except: return data
+        else: # Encrypt
+            json_str = json.dumps(data, ensure_ascii=False)
+            xored = "".join(chr(ord(c) ^ ord(key[i % len(key)])) for i, c in enumerate(json_str))
+            return base64.b64encode(xored.encode('utf-8')).decode('utf-8')
+
     def _load(self):
         default_config = {
             "url": "",
             "key": "",
             "q993": "993",
-            "q994": "994",
+            "q994": "1004",
             "q1011": "1011",
             "start_date": "2024-01",
-            "end_date": "2024-12",
+            "end_date": "2026-12",
             "voucher_type": "all",
             "item_filter": "overall",
             "threads": 5,
-            "theme": "light",
+            "theme": "dark",
+            "data_source": "local",
+            "remote_ranking_url": "",
+            "remote_drilldown_url": "",
             "code_map": {
                 "account": {
                     "1": "未確定", "31": "現金", "32": "普通預金", "33": "当座預金", "37": "売掛金", "38": "仮払金", 
@@ -46,14 +63,22 @@ class Config:
         if os.path.exists(self.config_path):
             try:
                 with open(self.config_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if "code_map" not in data:
-                        data["code_map"] = default_config["code_map"]
-                    return data
-            except:
-                pass
+                    content = f.read().strip()
+                    if not content: return default_config
+                    
+                    if content.startswith('{'): # Legacy plain JSON
+                        data = json.loads(content)
+                    else: # Obfuscated
+                        decrypted = self._crypt(content)
+                        data = json.loads(decrypted)
+                    
+                    # Merge with defaults to ensure all keys exist
+                    merged = default_config.copy()
+                    merged.update(data)
+                    return merged
+            except Exception as e:
+                print(f"[CONFIG] Load error: {e}")
         return default_config
-
 
     def reload(self):
         self.data = self._load()
@@ -61,8 +86,11 @@ class Config:
     def save(self, data=None):
         if data:
             self.data.update(data)
+        
+        # Save as obfuscated string
+        obfuscated = self._crypt(self.data)
         with open(self.config_path, 'w', encoding='utf-8') as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=2)
+            f.write(obfuscated)
 
     def get(self, key, default=None):
         return self.data.get(key, default)
