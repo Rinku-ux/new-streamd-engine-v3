@@ -29,6 +29,24 @@ class DataEngine:
         self._drilldown_row_count = 0
         self._lock = threading.Lock()
         self._data_hash = None  # for chart cache invalidation
+        self.last_load_time = None
+        self.sync_progress = "-- / --"
+        self._load_sync_status()
+
+    def _load_sync_status(self):
+        """Load sync_status.json if it exists"""
+        try:
+            status_file = os.path.join(self.base_dir, 'sync_status.json')
+            if os.path.exists(status_file):
+                import json
+                with open(status_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    offset = data.get('last_offset', 0)
+                    total = data.get('total_clients', 0)
+                    if total > 0:
+                        self.sync_progress = f"{offset:,} / {total:,}"
+        except Exception as e:
+            print(f"[ENGINE] Failed to load sync status: {e}")
 
     def load_from_url(self, url, is_drilldown=False, progress_callback=None):
         """Download data from a URL and load it into the engine with schema validation."""
@@ -715,6 +733,7 @@ class DataEngine:
             pass
 
         result["last_load_time"] = self.last_load_time
+        result["sync_progress"] = self.sync_progress
         return result
 
     def export_query_to_csv(self, sql_query, output_path, r_path=None):
