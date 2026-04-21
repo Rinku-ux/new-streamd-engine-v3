@@ -247,9 +247,18 @@ class DashboardView(QWidget):
         main_layout.setSpacing(20)
         
         # Header
-        header = QLabel(" Dashboard")
-        header.setObjectName("PageHeader")
-        main_layout.addWidget(header)
+        header_row = QHBoxLayout()
+        header_lbl = QLabel(" Dashboard")
+        header_lbl.setObjectName("DashboardHeader")
+        header_row.addWidget(header_lbl)
+        
+        header_row.addStretch()
+        
+        self.last_sync_label = QLabel("Last Sync: --")
+        self.last_sync_label.setStyleSheet("color: #94A3B8; font-size: 11px; margin-right: 10px; font-family: 'Segoe UI';")
+        header_row.addWidget(self.last_sync_label, 0, Qt.AlignBottom)
+        
+        main_layout.addLayout(header_row)
         
         subtitle = QLabel("Streamd BI - 全社推移グラフ")
         subtitle.setObjectName("PageSubtitle")
@@ -854,6 +863,14 @@ class DashboardView(QWidget):
         self.card_accuracy.set_value(f"{acc}%", trend=acc_trend)
         self.card_vouchers.set_value(f"{vouchers:,}")
         self.card_rows.set_value(f"{rows:,}")
+        
+        # Update last sync time
+        stats = self.engine.get_stats_summary()
+        last_time = stats.get("last_load_time")
+        if last_time:
+            self.last_sync_label.setText(f"Last Sync: {last_time}")
+        else:
+            self.last_sync_label.setText("Last Sync: --")
 
     # ---- Chart 1: Overall ----
     def _build_overall_chart(self):
