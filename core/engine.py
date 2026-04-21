@@ -819,7 +819,7 @@ class DataEngine:
                     # 4. Load from CSV into DuckDB
                     db_start = time.time()
                     if progress_callback: progress_callback("[ENGINE-DB] Bulk inserting into DuckDB...")
-                    self.conn.execute(f"INSERT INTO {table_name} SELECT * FROM read_csv_auto('{csv_p.replace('\\','/')}', all_varchar=true)")
+                    self.conn.execute(f"INSERT INTO {table_name} SELECT * FROM read_csv_auto('{csv_p.replace(chr(92),'/')}', all_varchar=true)")
                     db_elapsed = time.time() - db_start
                     if progress_callback: progress_callback(f"[ENGINE-DB] Insert complete! ({db_elapsed:.1f}s)")
                     return True
