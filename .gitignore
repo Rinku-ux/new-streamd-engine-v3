@@ -1,0 +1,33 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Data files (Large or local-only)
+*.csv
+*.parquet
+*.zip
+*.db
+*.log
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+
+# Configuration
+config.json
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build and Output
+dist/
+build/
+Output/

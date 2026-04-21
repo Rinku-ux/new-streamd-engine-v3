@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streamd BI Native Engine - マニュアル</title>
+    <style>
+        :root {
+            --bg-color: #0F172A;
+            --sidebar-bg: #1E293B;
+            --text-color: #CBD5E1;
+            --header-color: #F8FAFC;
+            --accent-color: #4F46E5;
+            --accent-hover: #6366F1;
+            --border-color: #334155;
+            --card-bg: #1E293B;
+            --success-color: #10B981;
+            --info-color: #3B82F6;
+            --warning-color: #F59E0B;
+            --danger-color: #EF4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'Noto Sans JP', 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            background: radial-gradient(circle at 50% 50%, #171f33 0%, #0f172a 100%);
+            color: var(--text-color);
+            line-height: 1.7;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        aside {
+            width: 280px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border-color);
+            padding: 2rem 1.5rem;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .logo {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--header-color);
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo span {
+            color: var(--accent-color);
+        }
+
+        nav ul {
+            list-style: none;
+        }
+
+        nav li {
+            margin-bottom: 0.5rem;
+        }
+
+        nav a {
+            color: var(--text-color);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            display: block;
+            transition: all 0.2s;
+        }
+
+        nav a:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: var(--header-color);
+        }
+
+        nav .active {
+            background-color: rgba(79, 70, 229, 0.15);
+            color: #818CF8;
+        }
+
+        /* Mobile Menu Toggle */
+        .menu-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 2000;
+            background: var(--accent-color);
+            border: none;
+            color: white;
+            padding: 0.75rem;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        /* Main Content */
+        main {
+            margin-left: 280px;
+            padding: 4rem 2rem;
+            width: calc(100% - 280px);
+            display: flex;
+            justify-content: center;
+        }
+
+        .content-wrapper {
+            max-width: 900px;
+            width: 100%;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        header {
+            text-align: center;
+            padding: 4rem 0 6rem;
+            position: relative;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(79, 70, 229, 0.15) 0%, transparent 70%);
+            z-index: -1;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: rgba(79, 70, 229, 0.1);
+            color: #818CF8;
+            padding: 0.4rem 1rem;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(79, 70, 229, 0.2);
+        }
+
+        header h1 {
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: var(--header-color);
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.04em;
+            background: linear-gradient(to bottom, #FFFFFF 30%, #94A3B8 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 1.25rem;
+            color: #94A3B8;
+            margin-bottom: 0;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        section {
+            margin-bottom: 6rem;
+            scroll-margin-top: 3rem;
+            background-color: rgba(30, 41, 59, 0.4);
+            padding: 2.5rem;
+            border-radius: 16px;
+            border: 1px solid rgba(51, 65, 85, 0.5);
+            backdrop-filter: blur(8px);
+        }
+
+        h2 {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--header-color);
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            background: linear-gradient(to right, #F8FAFC, #94A3B8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h2::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 2rem;
+            background: linear-gradient(to bottom, var(--accent-color), var(--accent-hover));
+            border-radius: 4px;
+        }
+
+        h3 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--header-color);
+            margin: 2.5rem 0 1.25rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        p {
+            margin-bottom: 1rem;
+        }
+
+        ul, ol {
+            margin-bottom: 1.5rem;
+            margin-left: 1.5rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Bento Grid */
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: auto auto;
+            gap: 1.5rem;
+            margin: 3rem 0;
+            grid-template-areas: 
+                "speed speed stats"
+                "speed speed sync";
+        }
+
+        .card-speed { grid-area: speed; }
+        .card-stats { grid-area: stats; }
+        .card-sync { grid-area: sync; }
+
+        .card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 2rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-speed {
+            padding: 3rem;
+            justify-content: center;
+            background: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(15, 23, 42, 0.8) 100%);
+            border: 1px solid rgba(79, 70, 229, 0.2);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(to right, transparent, var(--accent-color), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-8px);
+            border-color: rgba(79, 70, 229, 0.3);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            display: inline-block;
+            filter: drop-shadow(0 0 8px rgba(79, 70, 229, 0.3));
+        }
+
+        .card h4 {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: var(--header-color);
+            margin-bottom: 1rem;
+        }
+
+        .card p {
+            font-size: 0.95rem;
+            color: #94A3B8;
+            margin-bottom: 0;
+            line-height: 1.6;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 1rem 1.25rem;
+            border-radius: 8px;
+            margin: 1.5rem 0;
+            display: flex;
+            gap: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .alert-info { 
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.05) 100%);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-left: 4px solid var(--info-color); 
+        }
+        .alert-warning { 
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6) 0.05% 100%);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-left: 4px solid var(--warning-color); 
+        }
+
+        kbd {
+            background-color: #334155;
+            border: 1px solid #475569;
+            border-radius: 4px;
+            padding: 0.1rem 0.4rem;
+            font-family: inherit;
+            font-size: 0.85em;
+            color: var(--header-color);
+        }
+
+        code {
+            background-color: #1a1a1a;
+            color: #10B981;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+
+        /* Screenshots */
+        .screenshot {
+            margin: 2rem 0;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .screenshot img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .screenshot-caption {
+            background-color: var(--sidebar-bg);
+            padding: 0.75rem 1rem;
+            font-size: 0.85rem;
+            color: #94A3B8;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        footer {
+            margin-top: 6rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border-color);
+            color: #64748B;
+            font-size: 0.875rem;
+            text-align: center;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .bento-grid {
+                grid-template-columns: 1fr 1fr;
+                grid-template-areas: 
+                    "speed speed"
+                    "stats sync";
+            }
+        }
+
+        @media (max-width: 768px) {
+            .menu-toggle {
+                display: block;
+            }
+            aside {
+                transform: translateX(-100%);
+                z-index: 1500;
+                transition: transform 0.3s ease;
+                width: 250px;
+            }
+            aside.open {
+                transform: translateX(0);
+            }
+            main {
+                margin-left: 0;
+                padding: 4rem 1.5rem;
+                width: 100%;
+            }
+            .bento-grid {
+                grid-template-columns: 1fr;
+                grid-template-areas: 
+                    "speed"
+                    "stats"
+                    "sync";
+            }
+            header h1 {
+                font-size: 2.5rem;
+            }
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 1.5rem;
+            color: var(--accent-color);
+            filter: drop-shadow(0 0 8px rgba(79, 70, 229, 0.4));
+        }
+
+        .card-speed .feature-icon {
+            width: 64px;
+            height: 64px;
+        }
+    </style>
+</head>
+<body>
+    <button class="menu-toggle" id="menuToggle">
+        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <aside id="sidebar">
+        <div class="logo">⚡ Streamd<span>BI</span></div>
+        <nav>
+            <ul>
+                <li><a href="#intro" class="active">概要</a></li>
+                <li><a href="#quickstart">クイックスタート</a></li>
+                <li><a href="#dashboard">ダッシュボード</a></li>
+                <li><a href="#ranking">ランキングと詳細分析</a></li>
+                <li><a href="#csv-export">CSVエクスポート</a></li>
+                <li><a href="#sync">データ同期 (Redash)</a></li>
+                <li><a href="#codemap">コードマップ設定</a></li>
+                <li><a href="#settings">設定とテーマ</a></li>
+                <li><a href="#faq">FAQ</a></li>
+            </ul>
+        </nav>
+    </aside>
+
+    <main>
+        <div class="content-wrapper">
+            <header>
+                <div class="hero-badge">PREMIUM BI ENGINE</div>
+                <h1>Streamd BI<br>Native Engine</h1>
+                <p class="subtitle">DuckDBの圧倒的なパワーを、直感的なデスクトップ体験へ。ビジネスの意思決定を「爆速」にする次世代BIツール。</p>
+            </header>
+
+        <section id="intro">
+            <h2>プロダクト概要</h2>
+            <p style="font-size: 1.1rem; color: #CBD5E1; margin-bottom: 3rem; text-align: center; max-width: 800px; margin-left: auto; margin-right: auto;">
+                Streamd BI Native Engineは、Redash上の膨大なデータをローカル環境で高速に分析・可視化するためのプロフェッショナル向けツールです。
+                インメモリ処理の最適化により、数百万件のデータもストレスなく、自由自在に操ることができます。
+            </p>
+            <div class="bento-grid">
+                <div class="card card-speed">
+                    <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    <h4>爆速レスポンス</h4>
+                    <p>DuckDBによるインメモリ処理。フィルタリングや集計は常に「ミリ秒」単位で完了し、思考を妨げません。</p>
+                </div>
+                <div class="card card-stats">
+                    <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                    <h4>流麗な可視化</h4>
+                    <p>ランキングをインタラクティブに操作。ドリルダウンで細部まで解明。</p>
+                </div>
+                <div class="card card-sync">
+                    <svg class="feature-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <h4>柔軟なデータ連携</h4>
+                    <p>Redash APIとのシームレスな同期基盤。</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="quickstart">
+            <h2>クイックスタート</h2>
+            <p>アプリを起動したら、まずはデータを読み込みましょう。</p>
+            <ol>
+                <li><strong>データの同期</strong>: <kbd>同期</kbd>タブを開き、<kbd>Start Sync</kbd>をクリックしてRedashから最新データを取得します。（APIキーの設定が必要です）</li>
+                <li><strong>ZIP/CSVの読み込み</strong>: すでに手元にデータがある場合は、<kbd>同期</kbd>タブ内の「データ読み込み」セクションからZIPまたはCSVを選択してロードできます。</li>
+                <li><strong>分析開始</strong>: サイドバーから<kbd>ダッシュボード</kbd>または<kbd>ランキング</kbd>を選択し、分析を開始します。</li>
+            </ol>
+            <div class="alert alert-info">
+                <strong>Tips:</strong> CSVファイルがアプリディレクトリにある場合、起動時に自動的に読み込まれます。
+            </div>
+        </section>
+
+        <section id="dashboard">
+            <h2>ダッシュボード</h2>
+            <p>全体のトレンドを俯瞰するための画面です。</p>
+            <div class="screenshot">
+                <img src="docs/img/dashboard.png" alt="Dashboard Screenshot">
+                <div class="screenshot-caption">ダッシュボード画面：時系列推移と証憑タイプ別の内訳を表示</div>
+            </div>
+            <h3>インタラクティブ・チャート</h3>
+            <ul>
+                <li><strong>ポイントクリック</strong>: グラフ上のデータポイントをクリックすると、その期間・条件でフィルタリングされた「詳細ランキング」画面へ自動で遷移します。</li>
+                <li><strong>凡例の切り替え</strong>: 凡例をクリックすることで、特定のシリーズ（証憑タイプなど）の表示/非表示を切り替えられます。</li>
+            </ul>
+        </section>
+
+        <section id="ranking">
+            <h2>ランキングと詳細分析</h2>
+            <p>個別のクライアントや取引のデータを詳細に確認できる画面です。</p>
+            <div class="screenshot">
+                <img src="docs/img/ranking.png" alt="Ranking Screenshot">
+                <div class="screenshot-caption">ランキング画面：DuckDBによる高速フィルタリングと集計</div>
+            </div>
+            <h3>高度なフィルタリング</h3>
+            <p>検索バーには、SQLの <code>WHERE</code> 句のような条件式を直接入力できます。</p>
+            <ul>
+                <li><code>処理月 = '2024-03'</code> : 特定の月のデータを表示</li>
+                <li><code>企業名 LIKE '%株式会社%'</code> : 部分一致検索</li>
+                <li><code>証憑タイプ = '領収書' AND 枚数 > 100</code> : 複合条件</li>
+            </ul>
+        </section>
+
+        <section id="csv-export">
+            <h2>CSVエクスポート</h2>
+            <p>分析結果を外部ツールで利用するために、CSV形式で出力できます。</p>
+            
+            <h3>1. 表示中の一覧をエクスポート</h3>
+            <p>「ランキング」画面でフィルタリングされた現在のテーブルをそのまま保存します。</p>
+            <ul>
+                <li><strong>手順</strong>: <kbd>一覧をCSVエクスポート</kbd> ボタンをクリックします。</li>
+                <li><strong>用途</strong>: 特定の企業の月次レポート作成や、条件に合致する企業リストの作成。</li>
+            </ul>
+
+            <h3>2. まとめてドリルダウン出力 (一括書換抽出)</h3>
+            <p>全クライアントの修正履歴（ドリルダウンデータ）を、特定の条件で横断的に抽出します。</p>
+            <ul>
+                <li><strong>ダイアログ設定</strong>: 対象月、証憑タイプ、エラー項目で絞り込みが可能です。</li>
+                <li><strong>コードマップ反映</strong>: 「コードを日本語に翻訳して出力する」をチェックすると、数値コードが名称（例: 31 → 現金）に変換された状態で出力されます。</li>
+            </ul>
+        </section>
+
+        <section id="sync">
+            <h2>データ同期 (Redash)</h2>
+            <p>サーバー上の最新データをローカルに取り込みます。</p>
+            <div class="screenshot">
+                <img src="docs/img/sync.png" alt="Sync Screenshot">
+                <div class="screenshot-caption">同期画面：Redash APIとの連携とデータロード設定</div>
+            </div>
+            <ul>
+                <li><strong>差分更新 (マージ)</strong>: 既存のデータは残したまま、新しいデータだけを追記します。</li>
+                <li><strong>全件再取得 (フルリセット)</strong>: 全てのローカルデータを削除し、クエリの結果をそのまま保存します。</li>
+            </ul>
+            <div class="alert alert-warning">
+                同期中はアプリケーションの負荷が高くなる場合があります。完了するまでお待ちください。
+            </div>
+        </section>
+
+        <section id="codemap">
+            <h2>コードマップ設定</h2>
+            <p>システム内部の数値コードを、人間が理解しやすい日本語名称に変換するための辞書設定です。</p>
+            <div class="screenshot">
+                <img src="docs/img/codemap.png" alt="Codemap Screenshot">
+                <div class="screenshot-caption">コードマップ画面：勘定科目や税区分の対応表を管理</div>
+            </div>
+            <h3>変換の仕組み</h3>
+            <p>ドリルダウン詳細画面やCSV出力時に、設定された変換ルールが自動的に適用されます。</p>
+            <ul>
+                <li><strong>科目 (Account)</strong>: 「31」を「現金」、「41」を「売上高」などに変換します。</li>
+                <li><strong>税区分 (Tax)</strong>: 「12」を「課税仕入 10%」などに変換します。</li>
+            </ul>
+            <p>新しいコードが登場した場合は、<kbd>＋ 行を追加</kbd> から対応表を更新し、<kbd>💾 保存する</kbd> をクリックしてください。</p>
+        </section>
+
+        <section id="settings">
+            <h2>設定とテーマ</h2>
+            <p>サイドバーの下部にある太陽/月アイコンから、<strong>ダークテーマ</strong>と<strong>ライトテーマ</strong>を切り替えることができます。</p>
+            <div class="screenshot">
+                <img src="docs/img/settings.png" alt="Settings Screenshot">
+                <div class="screenshot-caption">設定画面：APIキーの設定と外観のカスタマイズ</div>
+            </div>
+            <p>APIキーや接続先URLは、<kbd>設定</kbd>画面から変更可能です。</p>
+        </section>
+
+        <section id="faq">
+            <h2>FAQ</h2>
+            <h3>Q. データが表示されません</h3>
+            <p>
+                <kbd>同期</kbd>タブで「再読み込み」を試すか、<code>streamdbi_ranking_data_master.csv</code> が存在するファイルを確認してください。
+            </p>
+            <h3>Q. 同期時にエラーが出る</h3>
+            <p>
+                インターネット接続と、設定画面のAPIキーが正しいかを確認してください。RedashのクエリIDが変更されていないかも重要です。
+            </p>
+        </section>
+
+        <footer>
+            &copy; 2026 Streamd BI Project. Built for Premium Performance.
+        </footer>
+    </div>
+</main>
+
+    <script>
+        // Mobile Menu Toggle
+        const menuToggle = document.getElementById('menuToggle');
+        const sidebar = document.getElementById('sidebar');
+        
+        menuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('open');
+        });
+
+        // Close sidebar when clicking links on mobile
+        const navLinks = document.querySelectorAll('nav a');
+        navLinks.forEach(link => {
+            link.addEventListener('click', () => {
+                if (window.innerWidth <= 768) {
+                    sidebar.classList.remove('open');
+                }
+            });
+        });
+
+        // Simple scroll spy for active link
+        window.addEventListener('scroll', () => {
+            const sections = document.querySelectorAll('section');
+            const navLinks = document.querySelectorAll('nav a');
+            
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop;
+                if (window.pageYOffset >= sectionTop - 100) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href').includes(current)) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
