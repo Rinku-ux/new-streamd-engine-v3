@@ -84,6 +84,12 @@ class DataEngine:
                     os.remove(target_path)
                 shutil.move(temp_path, target_path)
 
+                # IMPORTANT: Delete parquet to force reload from fresh CSV
+                pq_path = self.master_parquet if not is_drilldown else self.drilldown_parquet
+                if os.path.exists(pq_path):
+                    try: os.remove(pq_path)
+                    except: pass
+
                 # Use _reload_csv directly to ensure the new CSV is prioritized over old Parquet
                 success = self._reload_csv(target_path, table_name, progress_callback)
                 if success:
@@ -289,6 +295,12 @@ class DataEngine:
                 if files_found == 0:
                     if progress_callback: progress_callback("No relevant CSV files found in ZIP.")
                     return False
+
+            # IMPORTANT: Delete existing parquets before reloading to ensure ZIP contents are prioritized
+            for pq in [self.master_parquet, self.drilldown_parquet]:
+                if os.path.exists(pq):
+                    try: os.remove(pq)
+                    except: pass
 
             self.reload_master_data(progress_callback)
             self.reload_drilldown_data(progress_callback)
