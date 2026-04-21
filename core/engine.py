@@ -772,7 +772,12 @@ class DataEngine:
             
             config_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json'))
             config_tmp = os.path.join(bridge_tmp, "config.json")
-            if os.path.exists(config_path): shutil.copy2(config_path, config_tmp)
+            if os.path.exists(config_path):
+                from core.config import Config
+                import json
+                cfg = Config(config_path)
+                with open(config_tmp, 'w', encoding='utf-8') as f:
+                    json.dump(cfg.data, f, ensure_ascii=False)
             
             final_tmp = os.path.join(bridge_tmp, "cleaned_bulk.csv")
             input_paths_str = ",".join(input_paths)
@@ -884,7 +889,12 @@ class DataEngine:
                 # 2. Config path (shared root)
                 config_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.json'))
                 config_tmp = os.path.join(tmp_dir, "config.json")
-                if os.path.exists(config_path): shutil.copy2(config_path, config_tmp)
+                if os.path.exists(config_path):
+                    from core.config import Config
+                    import json
+                    cfg = Config(config_path)
+                    with open(config_tmp, 'w', encoding='utf-8') as f:
+                        json.dump(cfg.data, f, ensure_ascii=False)
                 
                 # 3. Destination
                 final_tmp = os.path.join(tmp_dir, "cleaned.csv")
