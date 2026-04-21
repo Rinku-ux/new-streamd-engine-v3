@@ -228,6 +228,19 @@ async def do_sync_headless():
     engine.save_to_csv()
     engine.save_to_zip()
     
+    # Save sync status to JSON for UI to display progress
+    try:
+        status_data = {
+            "last_offset": sync_offset + len(clients),
+            "total_clients": len(clients_to_process),
+            "timestamp": datetime.now().isoformat()
+        }
+        with open(os.path.join(base_dir, 'sync_status.json'), 'w', encoding='utf-8') as sf:
+            json.dump(status_data, sf, indent=4, ensure_ascii=False)
+        log(f"Sync status saved: {status_data['last_offset']} / {status_data['total_clients']}")
+    except Exception as se:
+        log(f"Warning: Failed to save sync status: {se}")
+    
     log(f"SYNC COMPLETE. Total Ranking: {total_ranking}, Total Drilldown: {total_dd}")
     
     # Signal if more work is needed (for self-chaining workflows)
