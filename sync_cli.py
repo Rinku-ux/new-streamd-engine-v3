@@ -152,9 +152,10 @@ async def do_sync_headless():
     log("Deduplicating data...")
     engine.deduplicate()
     
-    log("Final saving to Parquet and CSV...")
+    log("Final saving to Parquet, CSV and ZIP...")
     engine.save_to_parquet()
     engine.save_to_csv()
+    engine.save_to_zip()
     
     log(f"Sync complete. Total rows: Ranking={total_ranking}, Drilldown={total_dd}")
 

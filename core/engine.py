@@ -385,6 +385,18 @@ class DataEngine:
         except Exception as e:
             print(f"[ENGINE] CSV Save Error: {e}")
             return False
+    def save_to_zip(self):
+        """Create a concentrated ZIP archive containing the master and drilldown CSVs."""
+        try:
+            with zipfile.ZipFile(self.zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                if os.path.exists(self.master_csv):
+                    zf.write(self.master_csv, os.path.basename(self.master_csv))
+                if os.path.exists(self.drilldown_csv):
+                    zf.write(self.drilldown_csv, os.path.basename(self.drilldown_csv))
+            return True
+        except Exception as e:
+            print(f"[ENGINE] ZIP Save Error: {e}")
+            return False
 
     def _find_r(self):
         """Internal R-path helper."""

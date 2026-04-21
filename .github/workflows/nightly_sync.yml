@@ -55,11 +55,11 @@ jobs:
             *.parquet
             *.zip
 
-      # Optional: Commit to repository (Uncomment if needed)
-      # - name: Commit and push changes
-      #   run: |
-      #     git config --global user.name "github-actions[bot]"
-      #     git config --global user.email "github-actions[bot]@users.noreply.github.com"
-      #     git add *.csv *.parquet
-      #     git commit -m "Auto-sync: Updated data $(date +'%Y-%m-%d')" || exit 0
-      #     git push
+      # Commit to repository to provide stable URLs
+      - name: Commit and push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add streamdbi_data.zip
+          git commit -m "Auto-sync: Updated data ZIP $(date +'%Y-%m-%d')" || exit 0
+          git push
