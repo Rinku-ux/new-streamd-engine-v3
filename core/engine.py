@@ -509,10 +509,10 @@ class DataEngine:
                     if os.path.exists(m_clean):
                         # STAGING APPROACH: Delete and Insert to preserve Schema
                         self.conn.execute("DELETE FROM master_data")
-                        self.conn.execute(f"INSERT INTO master_data SELECT * FROM read_csv_auto('{m_clean.replace('\\','/')}', all_varchar=true)")
+                        self.conn.execute(f"INSERT INTO master_data SELECT * FROM read_csv_auto('{m_clean.replace(chr(92),'/')}', all_varchar=true)")
                     if os.path.exists(dd_clean):
                         self.conn.execute("DELETE FROM drilldown_data")
-                        self.conn.execute(f"INSERT INTO drilldown_data SELECT * FROM read_csv_auto('{dd_clean.replace('\\','/')}', all_varchar=true)")
+                        self.conn.execute(f"INSERT INTO drilldown_data SELECT * FROM read_csv_auto('{dd_clean.replace(chr(92),'/')}', all_varchar=true)")
                     
                     # UPDATE INTERNAL COUNTS
                     self._row_count = self.conn.execute("SELECT COUNT(*) FROM master_data").fetchone()[0]
