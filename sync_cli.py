@@ -46,6 +46,7 @@ async def do_sync_headless():
         end_date = os.environ.get("SYNC_END_DATE", config.get("end_date", "2024-12"))
         
     voucher_type = os.environ.get("SYNC_VOUCHER_TYPE", config.get("voucher_type", "all"))
+    threads = int(os.environ.get("SYNC_THREADS", config.get("threads", 5)))
     sync_mode = os.environ.get("SYNC_MODE", "diff") # diff, clean
     limit = os.environ.get("SYNC_LIMIT", config.get("limit"))
     offset = os.environ.get("SYNC_OFFSET", config.get("offset"))
