@@ -1,5 +1,9 @@
 name: Nightly Data Sync
 
+concurrency:
+  group: sync-${{ github.ref }}
+  cancel-in-progress: false
+
 on:
   schedule:
     - cron: '0 18 * * *' # 03:00 JST
