@@ -46,7 +46,7 @@ jobs:
           SYNC_END_DATE: '2026-12'
           SYNC_TARGET: 'full'
           SYNC_MODE: 'diff'
-          SYNC_LIMIT: ${{ github.event.inputs.sync_limit != 'None' && github.event.inputs.sync_limit || '2000' }}
+          SYNC_LIMIT: ${{ github.event.inputs.sync_limit != 'None' && github.event.inputs.sync_limit || '20000' }}
           SYNC_OFFSET: ${{ github.event.inputs.sync_offset || '0' }}
         run: python sync_cli.py
 
