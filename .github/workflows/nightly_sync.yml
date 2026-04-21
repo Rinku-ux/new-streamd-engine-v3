@@ -42,8 +42,8 @@ jobs:
           REDASH_Q993: '993'
           REDASH_Q994: '1004'
           REDASH_Q1011: '1011'
-          SYNC_START_DATE: '2024-01'
-          SYNC_END_DATE: '2026-12'
+          REDASH_Q994: '1004'
+          REDASH_Q1011: '1011'
           SYNC_TARGET: 'full'
           SYNC_MODE: 'diff'
           SYNC_LIMIT: ${{ github.event.inputs.sync_limit != 'None' && github.event.inputs.sync_limit || '20000' }}

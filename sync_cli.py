@@ -26,11 +26,26 @@ async def do_sync_headless():
     q994 = os.environ.get("REDASH_Q994", config.get("q994"))
     q1011 = os.environ.get("REDASH_Q1011", config.get("q1011"))
     
-    start_date = os.environ.get("SYNC_START_DATE", config.get("start_date", "2024-01"))
-    end_date = os.environ.get("SYNC_END_DATE", config.get("end_date", "2024-12"))
-    voucher_type = os.environ.get("SYNC_VOUCHER_TYPE", config.get("voucher_type", "all"))
-    threads = int(os.environ.get("SYNC_THREADS", config.get("threads", 5)))
     sync_target = os.environ.get("SYNC_TARGET", "full") # full, drilldown, client
+    if sync_target == "full":
+        # Dynamic range: Last 3 years from current month
+        from datetime import datetime, timedelta
+        now = datetime.now()
+        # Default to current month as end
+        default_end = now.strftime("%Y-%m")
+        # Default to 3 years ago (January of that year to be thorough)
+        three_years_ago = now.year - 3
+        default_start = f"{three_years_ago}-01"
+        
+        start_date = os.environ.get("SYNC_START_DATE", default_start)
+        end_date = os.environ.get("SYNC_END_DATE", default_end)
+        
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Target Range: {start_date} to {end_date} (3-Year Dynamic Window)")
+    else:
+        start_date = os.environ.get("SYNC_START_DATE", config.get("start_date", "2024-01"))
+        end_date = os.environ.get("SYNC_END_DATE", config.get("end_date", "2024-12"))
+        
+    voucher_type = os.environ.get("SYNC_VOUCHER_TYPE", config.get("voucher_type", "all"))
     sync_mode = os.environ.get("SYNC_MODE", "diff") # diff, clean
     limit = os.environ.get("SYNC_LIMIT", config.get("limit"))
     offset = os.environ.get("SYNC_OFFSET", config.get("offset"))
