@@ -32,6 +32,11 @@ async def do_sync_headless():
     threads = int(os.environ.get("SYNC_THREADS", config.get("threads", 5)))
     sync_target = os.environ.get("SYNC_TARGET", "full") # full, drilldown, client
     sync_mode = os.environ.get("SYNC_MODE", "diff") # diff, clean
+    limit = os.environ.get("SYNC_LIMIT", config.get("limit"))
+    offset = os.environ.get("SYNC_OFFSET", config.get("offset"))
+    
+    sync_limit = int(limit) if limit and str(limit).isdigit() else None
+    sync_offset = int(offset) if offset and str(offset).isdigit() else 0
 
     if not redash_url or not redash_key:
         log("ERROR: REDASH_URL or REDASH_KEY is missing.")
@@ -52,11 +57,17 @@ async def do_sync_headless():
     rc = RedashClient(redash_url, redash_key)
     
     log(f"Fetching client list (Query {q993})...")
-    clients = await rc.fetch_query(q993)
-    total = len(clients)
-    log(f"Found {total} clients.")
+    all_clients = await rc.fetch_query(q993)
     
-    name_map = {str(c.get("client_id")): (c.get("enterprise_name") or c.get("client_name") or "") for c in clients if c.get("client_id")}
+    # Apply Offset and Limit
+    clients = all_clients[sync_offset:]
+    if sync_limit:
+        clients = clients[:sync_limit]
+        
+    total = len(clients)
+    log(f"Found {len(all_clients)} total clients. Processing {total} clients (Offset={sync_offset}, Limit={sync_limit or 'None'}).")
+    
+    name_map = {str(c.get("client_id")): (c.get("enterprise_name") or c.get("client_name") or "") for c in all_clients if c.get("client_id")}
 
     chunk_size = 50
     sem = asyncio.Semaphore(threads)
@@ -103,15 +114,21 @@ async def do_sync_headless():
                 log(f"Chunk {chunk_num} done. (Ranking: {len(ranking_buffer)}, DD: {len(dd_buffer)})")
                 
                 # Flush if buffer full
-                if len(ranking_buffer) >= buffer_threshold:
-                    log(f"Flushing {len(ranking_buffer)} ranking rows to engine...")
-                    engine.append_data(ranking_buffer, is_drilldown=False)
-                    ranking_buffer.clear()
-                
-                if len(dd_buffer) >= buffer_threshold:
-                    log(f"Flushing {len(dd_buffer)} drilldown rows to engine...")
-                    engine.append_data(dd_buffer, is_drilldown=True)
-                    dd_buffer.clear()
+                if len(ranking_buffer) >= buffer_threshold or len(dd_buffer) >= buffer_threshold:
+                    if len(ranking_buffer) >= buffer_threshold:
+                        log(f"Flushing {len(ranking_buffer)} ranking rows to engine...")
+                        engine.append_data(ranking_buffer, is_drilldown=False)
+                        ranking_buffer.clear()
+                    
+                    if len(dd_buffer) >= buffer_threshold:
+                        log(f"Flushing {len(dd_buffer)} drilldown rows to engine...")
+                        engine.append_data(dd_buffer, is_drilldown=True)
+                        dd_buffer.clear()
+                    
+                    # Periodic Save to disk
+                    log("Performing periodic save to disk...")
+                    engine.save_to_parquet()
+                    engine.save_to_csv()
 
             except Exception as e:
                 log(f"ERROR in Chunk {chunk_num}: {e}")
@@ -135,7 +152,7 @@ async def do_sync_headless():
     log("Deduplicating data...")
     engine.deduplicate()
     
-    log("Saving to Parquet and CSV...")
+    log("Final saving to Parquet and CSV...")
     engine.save_to_parquet()
     engine.save_to_csv()
     

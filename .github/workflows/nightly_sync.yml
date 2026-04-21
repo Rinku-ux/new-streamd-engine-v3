@@ -4,6 +4,15 @@ on:
   schedule:
     - cron: '0 18 * * *' # 03:00 JST
   workflow_dispatch: # Allow manual trigger
+    inputs:
+      sync_limit:
+        description: 'Maximum number of clients to process'
+        required: false
+        default: 'None'
+      sync_offset:
+        description: 'Number of clients to skip'
+        required: false
+        default: '0'
 
 jobs:
   sync:
@@ -33,6 +42,8 @@ jobs:
           SYNC_END_DATE: '2026-12'
           SYNC_TARGET: 'full'
           SYNC_MODE: 'diff'
+          SYNC_LIMIT: ${{ github.event.inputs.sync_limit }}
+          SYNC_OFFSET: ${{ github.event.inputs.sync_offset }}
         run: python sync_cli.py
 
       - name: Upload Sync Results
