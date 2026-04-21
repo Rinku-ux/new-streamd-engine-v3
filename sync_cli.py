@@ -119,13 +119,24 @@ async def do_sync_headless():
         clients_to_process = all_clients
     # ---------------------------------------------------------
     
+    # --- Prioritize existing clients (to make sure they are updated first) ---
+    in_db_ids = set()
+    try:
+        rows = engine.conn.execute('SELECT DISTINCT "クライアントID" FROM master_data').fetchall()
+        in_db_ids = {str(r[0]) for r in rows if r[0]}
+    except: pass
+    
+    # Sort: clients in DB first, then new ones
+    clients_to_process.sort(key=lambda c: str(c.get("client_id")) not in in_db_ids)
+    
     # Apply Offset and Limit
     clients = clients_to_process[sync_offset:]
     if sync_limit:
         clients = clients[:sync_limit]
         
+    next_offset = sync_offset + len(clients)
     total = len(clients)
-    log(f"Found {len(all_clients)} total clients. Processing {total} clients (Offset={sync_offset}, Limit={sync_limit or 'None'}).")
+    log(f"Processing {total} clients (Offset={sync_offset}, Limit={sync_limit or 'None'}). Next Offset: {next_offset}")
     
     name_map = {str(c.get("client_id")): (c.get("enterprise_name") or c.get("client_name") or "") for c in all_clients if c.get("client_id")}
 
@@ -224,8 +235,10 @@ async def do_sync_headless():
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
             f.write(f"has_more={'true' if has_more else 'false'}\n")
+            f.write(f"next_offset={next_offset}\n")
     if has_more:
-        log(f"--- NOTICE: {len(clients_to_process) - sync_limit} clients still pending. More runs needed. ---")
+        log(f"--- NOTICE: {len(clients_to_process) - len(clients)} clients still pending. More runs needed. ---")
+        log(f"Next Run Offset: {next_offset}")
 
 if __name__ == "__main__":
     asyncio.run(do_sync_headless())

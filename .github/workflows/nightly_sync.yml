@@ -71,5 +71,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Sync not finished. Triggering next chunk..."
-          gh workflow run nightly_sync.yml
+          echo "Sync not finished. Triggering next chunk with offset ${{ steps.sync_step.outputs.next_offset }}..."
+          gh workflow run nightly_sync.yml -f sync_offset=${{ steps.sync_step.outputs.next_offset }}
