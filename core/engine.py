@@ -86,6 +86,18 @@ class DataEngine:
                         print(f"[ENGINE] Failed to update local ZIP: {ze}")
                     
                     success = self.load_from_zip(temp_path, progress_callback)
+                    
+                    # Try to download sync_status.json from the same relative location
+                    try:
+                        status_url = url.replace('streamdbi_data.zip', 'sync_status.json')
+                        if 'sync_status.json' in status_url:
+                            resp = requests.get(status_url, timeout=10)
+                            if resp.status_code == 200:
+                                with open(os.path.join(self.base_dir, 'sync_status.json'), 'wb') as sf:
+                                    sf.write(resp.content)
+                                self._load_sync_status() # Refresh UI variables
+                    except: pass
+                    
                     return success
 
                 # SCHEMA VALIDATION (for CSV only)
