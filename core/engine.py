@@ -58,6 +58,15 @@ class DataEngine:
                 if is_zip:
                     # SPECIAL CASE: ZIP archive handling
                     if progress_callback: progress_callback("Extracting data from ZIP...")
+                    
+                    # Update the local ZIP file so the modified date matches the sync
+                    try:
+                        import shutil
+                        if os.path.exists(self.zip_path): os.remove(self.zip_path)
+                        shutil.copy2(temp_path, self.zip_path)
+                    except Exception as ze:
+                        print(f"[ENGINE] Failed to update local ZIP: {ze}")
+                    
                     success = self.load_from_zip(temp_path, progress_callback)
                     return success
 
@@ -184,6 +193,7 @@ class DataEngine:
             except:
                 pass
             self._data_hash = f"{count}_{mtime}"
+            self.last_load_time = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
         else:
             self._drilldown_row_count = count
 
@@ -655,6 +665,7 @@ class DataEngine:
         self._row_count = 0
         self._drilldown_row_count = 0
         self._data_hash = None
+        self.last_load_time = None
 
     def get_stats_summary(self):
         """Fast stats from cached values — non-blocking DB access."""
@@ -703,6 +714,7 @@ class DataEngine:
         except:
             pass
 
+        result["last_load_time"] = self.last_load_time
         return result
 
     def export_query_to_csv(self, sql_query, output_path, r_path=None):
