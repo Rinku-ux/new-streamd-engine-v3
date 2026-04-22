@@ -67,6 +67,13 @@ async def do_sync_headless():
     else:
         # Load existing data to perform differential merge
         log("Differential Sync selected. Loading existing data...")
+        
+        # In CI environments, only the ZIP is checked into the repo
+        if not engine.has_data():
+            if os.path.exists(engine.zip_path):
+                log(f"Extracting existing state from {engine.zip_path}...")
+                engine.load_from_zip(engine.zip_path, progress_callback=lambda m: log(f"[ZIP] {m}"))
+                
         engine.reload_master_data()
         engine.reload_drilldown_data()
 
