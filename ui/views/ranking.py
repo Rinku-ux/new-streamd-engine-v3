@@ -224,9 +224,10 @@ class GlobalExportWorker(QThread):
                     # 3. Handle config if needed
                     config_tmp = None
                     if self.use_codemap:
-                        config_src = os.path.abspath(os.path.join(app_root, 'config.json'))
                         config_tmp = os.path.join(tmp_dir, "config.json")
-                        shutil.copy2(config_src, config_tmp)
+                        import json
+                        with open(config_tmp, 'w', encoding='utf-8') as f:
+                            json.dump(self.config.data, f, ensure_ascii=False)
                     
                     # REFRESH PATH: Ensure we don't use a stale path if R was updated
                     self._r_path = self._find_r()
@@ -303,7 +304,14 @@ class RankingView(QWidget):
 
         # Header
         header_layout = QHBoxLayout()
-        header = QLabel("📋 データテーブル")
+        header_layout.setSpacing(12)
+        
+        from ui.components.icons import Icons
+        icon_label = QLabel()
+        icon_label.setPixmap(Icons.get_pixmap(Icons.TABLE, 24, "#818CF8" if getattr(self, "_is_dark", True) else "#4F46E5"))
+        header_layout.addWidget(icon_label)
+        
+        header = QLabel("データテーブル")
         header.setObjectName("PageHeader")
         header_layout.addWidget(header)
 
@@ -336,7 +344,8 @@ class RankingView(QWidget):
 
         # CSV Export Button
         btn_export_layout = QHBoxLayout()
-        self.export_btn = QPushButton("📥 一覧をCSVエクスポート")
+        self.export_btn = QPushButton(" 一覧をCSVエクスポート")
+        self.export_btn.setIcon(Icons.get_icon(Icons.DOWNLOAD, 16, "white"))
         self.export_btn.setStyleSheet("""
             QPushButton { background-color: #059669; color: white; padding: 6px 14px;
                          border-radius: 6px; font-weight: 700; font-size: 11px; }
@@ -345,7 +354,8 @@ class RankingView(QWidget):
         self.export_btn.setCursor(Qt.PointingHandCursor)
         self.export_btn.clicked.connect(self.export_csv)
         
-        self.global_dd_btn = QPushButton("📥 まとめてドリルダウン出力")
+        self.global_dd_btn = QPushButton(" まとめてドリルダウン出力")
+        self.global_dd_btn.setIcon(Icons.get_icon(Icons.DOWNLOAD, 16, "white"))
         self.global_dd_btn.setStyleSheet("""
             QPushButton { background-color: #4F46E5; color: white; padding: 6px 14px;
                          border-radius: 6px; font-weight: 700; font-size: 11px; }
@@ -365,10 +375,10 @@ class RankingView(QWidget):
         # Modern Progress Overlay (init at end of constructor)
         self.progress_overlay = ModernProgressOverlay(self)
 
-        # Search bar
         search_layout = QHBoxLayout()
-        search_label = QLabel("🔍")
-        search_label.setStyleSheet("font-size: 16px;")
+        search_layout.setSpacing(10)
+        search_label = QLabel()
+        search_label.setPixmap(Icons.get_pixmap(Icons.SEARCH, 18, "#94A3B8"))
         search_layout.addWidget(search_label)
 
         self.search_input = QLineEdit()

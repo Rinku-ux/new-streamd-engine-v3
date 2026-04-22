@@ -28,16 +28,26 @@ class SettingsView(QWidget):
         layout.setSpacing(24)
 
         # Header
-        header = QLabel("⚙️  設定")
+        header_row = QHBoxLayout()
+        header_row.setSpacing(12)
+        
+        from ui.components.icons import Icons
+        icon_label = QLabel()
+        icon_label.setPixmap(Icons.get_pixmap(Icons.SETTINGS, 24, "#818CF8" if self.config.get("theme") == "dark" else "#4F46E5"))
+        header_row.addWidget(icon_label)
+        
+        header = QLabel("Settings")
         header.setObjectName("PageHeader")
-        layout.addWidget(header)
+        header_row.addWidget(header)
+        header_row.addStretch() # Fix: Keeps icon and text together on the left
+        layout.addLayout(header_row)
 
-        subtitle = QLabel("Redash接続とデータ同期のパラメータを管理します")
+        subtitle = QLabel("Manage Redash connection and data sync parameters")
         subtitle.setObjectName("PageSubtitle")
         layout.addWidget(subtitle)
 
         # ── Section 1: Redash Connection ──
-        self.conn_header = self._section_header("🔗  Redash 接続設定")
+        self.conn_header = self._section_header("Redash 接続設定")
         layout.addWidget(self.conn_header)
         
         self.conn_frame = self._card_frame()
@@ -54,7 +64,7 @@ class SettingsView(QWidget):
         layout.addWidget(self.conn_frame)
 
         # ── Section 2: Query IDs ──
-        self.query_header = self._section_header("📋  クエリ設定")
+        self.query_header = self._section_header("クエリ設定")
         layout.addWidget(self.query_header)
         
         self.query_frame = self._card_frame()
@@ -72,7 +82,7 @@ class SettingsView(QWidget):
         layout.addWidget(self.query_frame)
 
         # ── Section 3: Drill-down Sync Parameters ──
-        layout.addWidget(self._section_header("🔄  ドリルダウン同期パラメータ"))
+        layout.addWidget(self._section_header("ドリルダウン同期パラメータ"))
 
         sync_frame = self._card_frame()
         sync_layout = QFormLayout(sync_frame)
@@ -92,7 +102,7 @@ class SettingsView(QWidget):
         layout.addWidget(sync_frame)
 
         # ── Section 4: Software Update ──
-        layout.addWidget(self._section_header("🆙  ソフトウェアアップデート"))
+        layout.addWidget(self._section_header("ソフトウェアアップデート"))
         
         update_frame = self._card_frame()
         update_layout = QVBoxLayout(update_frame)

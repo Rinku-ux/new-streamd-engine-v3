@@ -160,12 +160,15 @@ class DataLoadWorker(QThread):
             dd_url = config.get("remote_drilldown_url")
             
             if ranking_url:
+                self.percent.emit(5)
                 self.progress.emit("リモートランキングデータを取得中...")
                 self.engine.load_from_url(ranking_url, is_drilldown=False, progress_callback=lambda msg: self.progress.emit(msg))
+                self.percent.emit(50)
             
             if dd_url:
                 self.progress.emit("リモートドリルダウンデータを取得中...")
                 self.engine.load_from_url(dd_url, is_drilldown=True, progress_callback=lambda msg: self.progress.emit(msg))
+                self.percent.emit(80)
             
             self.percent.emit(100)
             self.finished.emit(True)
@@ -221,6 +224,7 @@ class MainWindow(QMainWindow):
         # Sidebar
         self.sidebar = Sidebar()
         self.sidebar.set_theme_label(self._is_dark)
+        self.sidebar.setVisible(False) # Use setVisible for certainty
         main_layout.addWidget(self.sidebar)
         
         # Content Area
@@ -372,6 +376,7 @@ class MainWindow(QMainWindow):
     def _on_load_finished(self, success):
         self._setup_views()
         self._setup_file_watcher()
+        self.sidebar.show() # Show sidebar after load
         self.sidebar.set_active_item("dashboard")
 
     def _setup_views(self):

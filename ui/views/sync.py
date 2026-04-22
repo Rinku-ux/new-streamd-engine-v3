@@ -282,9 +282,19 @@ class SyncView(QWidget):
         layout.setContentsMargins(32, 24, 32, 32)
         layout.setSpacing(16)
 
-        header = QLabel("🔄 Redash Synchronization")
+        from ui.components.icons import Icons
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(12)
+        
+        icon_label = QLabel()
+        icon_label.setPixmap(Icons.get_pixmap(Icons.SYNC, 24, "#818CF8" if getattr(self, "is_dark", True) else "#4F46E5"))
+        header_layout.addWidget(icon_label)
+        
+        header = QLabel("Synchronization")
         header.setObjectName("PageHeader")
-        layout.addWidget(header)
+        header_layout.addWidget(header)
+        header_layout.addStretch() # Consistency
+        layout.addLayout(header_layout)
 
         # Info Cards
         cards_layout = QGridLayout()
@@ -311,23 +321,26 @@ class SyncView(QWidget):
         load_layout.setContentsMargins(20, 16, 20, 16)
         load_layout.setSpacing(12)
 
-        load_title = QLabel("📂 データ読み込み")
+        load_title = QLabel("Initial Data Ingestion")
         load_title.setObjectName("DetailSubHeader")
         load_layout.addWidget(load_title)
 
         load_btns = QHBoxLayout()
 
-        self.load_zip_btn = QPushButton("📦  ZIPを読み込む")
+        self.load_zip_btn = QPushButton(" Load ZIP")
+        self.load_zip_btn.setIcon(Icons.get_icon(Icons.DOWNLOAD, 16, "white"))
         self.load_zip_btn.setObjectName("SuccessBtn")
         self.load_zip_btn.clicked.connect(self.load_zip)
         load_btns.addWidget(self.load_zip_btn)
 
-        self.load_csv_btn = QPushButton("📄  CSVを読み込む")
+        self.load_csv_btn = QPushButton(" Load CSV")
+        self.load_csv_btn.setIcon(Icons.get_icon(Icons.DOWNLOAD, 16, "white"))
         self.load_csv_btn.setObjectName("InfoBtn")
         self.load_csv_btn.clicked.connect(self.load_csv)
         load_btns.addWidget(self.load_csv_btn)
 
-        self.reload_btn = QPushButton("🔃  再読み込み")
+        self.reload_btn = QPushButton(" Reload Local")
+        self.reload_btn.setIcon(Icons.get_icon(Icons.SYNC, 16, "white"))
         self.reload_btn.setObjectName("ActionBtn")
         self.reload_btn.clicked.connect(self.reload_current)
         load_btns.addWidget(self.reload_btn)
@@ -356,7 +369,8 @@ class SyncView(QWidget):
         # Action Buttons
         btn_layout = QHBoxLayout()
 
-        self.sync_btn = QPushButton("▶  Start Sync")
+        self.sync_btn = QPushButton(" Start Sync")
+        self.sync_btn.setIcon(Icons.get_icon(Icons.SYNC, 16, "white"))
         self.sync_btn.setObjectName("PrimaryBtn")
         self.sync_btn.clicked.connect(self.start_sync)
         btn_layout.addWidget(self.sync_btn)

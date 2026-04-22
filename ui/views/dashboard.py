@@ -248,15 +248,26 @@ class DashboardView(QWidget):
         
         # Header
         header_row = QHBoxLayout()
-        header_lbl = QLabel(" Dashboard")
+        header_row.setSpacing(12)
+        
+        from ui.components.icons import Icons
+        icon_label = QLabel()
+        icon_label.setPixmap(Icons.get_pixmap(Icons.DASHBOARD, 24, "#818CF8" if self._is_dark else "#4F46E5"))
+        header_row.addWidget(icon_label)
+        
+        header_lbl = QLabel("Dashboard")
         header_lbl.setObjectName("DashboardHeader")
         header_row.addWidget(header_lbl)
         
-        header_row.addStretch()
+        header_row.addStretch() # Fix: Push text to the left together with icon
         
         self.last_sync_label = QLabel("Last Sync: --")
-        self.last_sync_label.setStyleSheet("color: #94A3B8; font-size: 11px; margin-right: 10px; font-family: 'Segoe UI';")
+        self.last_sync_label.setStyleSheet("color: #94A3B8; font-size: 11px; margin-right: 15px; font-family: 'Segoe UI';")
         header_row.addWidget(self.last_sync_label, 0, Qt.AlignBottom)
+        
+        self.sync_progress_label = QLabel("Sync Progress: --")
+        self.sync_progress_label.setStyleSheet("color: #94A3B8; font-size: 11px; margin-right: 10px; font-family: 'Segoe UI';")
+        header_row.addWidget(self.sync_progress_label, 0, Qt.AlignBottom)
         
         main_layout.addLayout(header_row)
         
@@ -871,6 +882,12 @@ class DashboardView(QWidget):
             self.last_sync_label.setText(f"Last Sync: {last_time}")
         else:
             self.last_sync_label.setText("Last Sync: --")
+            
+        sync_prog = stats.get("sync_progress")
+        if sync_prog:
+            self.sync_progress_label.setText(f"Sync Progress: {sync_prog}")
+        else:
+            self.sync_progress_label.setText("Sync Progress: --")
 
     # ---- Chart 1: Overall ----
     def _build_overall_chart(self):

@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                                QPushButton, QTableWidget, QTableWidgetItem,
                                QHeaderView, QTabWidget, QMessageBox)
 from PySide6.QtCore import Qt
+from ui.components.icons import Icons
 
 class CodeMapView(QWidget):
     def __init__(self, config, parent=None):
@@ -39,11 +40,22 @@ class CodeMapView(QWidget):
         layout.setContentsMargins(32, 24, 32, 24)
         layout.setSpacing(16)
 
-        header = QLabel("📖 コードマップ (表示変換テーブル)")
-        header.setObjectName("PageHeader")
-        layout.addWidget(header)
+        # Header
+        header_row = QHBoxLayout()
+        header_row.setSpacing(12)
         
-        info = QLabel("ドリルダウン画面で数値コードを日本語に自動変換するための辞書です。")
+        from ui.components.icons import Icons
+        icon_label = QLabel()
+        icon_label.setPixmap(Icons.get_pixmap(Icons.CODEMAP, 24, "#818CF8" if self.palette().color(self.backgroundRole()).lightness() < 128 else "#4F46E5"))
+        header_row.addWidget(icon_label)
+        
+        header = QLabel("Code Map")
+        header.setObjectName("PageHeader")
+        header_row.addWidget(header)
+        header_row.addStretch() # Add stretch to keep items on left
+        layout.addLayout(header_row)
+        
+        info = QLabel("Display translation table for numerical codes")
         info.setObjectName("PageSubtitle")
         layout.addWidget(info)
 
@@ -65,7 +77,8 @@ class CodeMapView(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        self.save_btn = QPushButton("💾 保存する")
+        self.save_btn = QPushButton(" Save Changes")
+        self.save_btn.setIcon(Icons.get_icon(Icons.SAVE, 16, "white"))
         self.save_btn.setObjectName("PrimaryBtn")
         self.save_btn.clicked.connect(self.save_maps)
         btn_layout.addWidget(self.save_btn)
@@ -85,11 +98,13 @@ class CodeMapView(QWidget):
         table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         
         btn_layout = QHBoxLayout()
-        add_btn = QPushButton("＋ 行を追加")
+        add_btn = QPushButton(" Add Row")
+        add_btn.setIcon(Icons.get_icon(Icons.PLUS, 14, "white"))
         add_btn.setObjectName("ActionBtn")
         add_btn.clicked.connect(lambda: self.add_row(table))
         
-        del_btn = QPushButton("－ 選択行を削除")
+        del_btn = QPushButton(" Delete Row")
+        del_btn.setIcon(Icons.get_icon(Icons.MINUS, 14, "white"))
         del_btn.setObjectName("DangerBtn")
         del_btn.clicked.connect(lambda: self.delete_row(table))
         
