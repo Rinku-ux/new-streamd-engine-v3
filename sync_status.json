@@ -1,11 +1,5 @@
 {
-<<<<<<< Updated upstream
-    "last_offset": 284073,
+    "last_offset": 20000,
     "total_clients": 284073,
-    "timestamp": "2026-04-22T13:19:06.031674"
-=======
-    "last_offset": 10,
-    "total_clients": 276036,
-    "timestamp": "2026-04-22T22:17:12.595894"
->>>>>>> Stashed changes
+    "timestamp": "2026-04-22T13:27:44.508752"
 }
