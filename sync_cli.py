@@ -136,7 +136,27 @@ async def do_sync_headless():
         
     next_offset = sync_offset + len(clients)
     total = len(clients)
-    log(f"Processing {total} clients (Offset={sync_offset}, Limit={sync_limit or 'None'}). Next Offset: {next_offset}")
+    log(f"Processing {total} clients (Offset={sync_offset}, Limit={sync_limit or 'None'}).")
+    
+    if len(clients) == 0:
+        if sync_offset >= len(clients_to_process) and len(clients_to_process) > 0:
+            log("SUCCESS: All clients are already processed for this range/mode.")
+        else:
+            log("No clients matching criteria were found to process.")
+        
+        # Save completion status even if 0 processed
+        try:
+            status_data = {
+                "last_offset": sync_offset,
+                "total_clients": len(clients_to_process),
+                "timestamp": datetime.now().isoformat()
+            }
+            with open(os.path.join(base_dir, 'sync_status.json'), 'w', encoding='utf-8') as sf:
+                json.dump(status_data, sf, indent=4, ensure_ascii=False)
+        except: pass
+        
+        log("SYNC COMPLETE. (No new data to fetch)")
+        return
     
     name_map = {str(c.get("client_id")): (c.get("enterprise_name") or c.get("client_name") or "") for c in all_clients if c.get("client_id")}
 
@@ -244,7 +264,7 @@ async def do_sync_headless():
     log(f"SYNC COMPLETE. Total Ranking: {total_ranking}, Total Drilldown: {total_dd}")
     
     # Signal if more work is needed (for self-chaining workflows)
-    has_more = len(clients_to_process) > sync_limit if sync_limit else False
+    has_more = next_offset < len(clients_to_process)
     if "GITHUB_OUTPUT" in os.environ:
         with open(os.environ["GITHUB_OUTPUT"], "a") as f:
             f.write(f"has_more={'true' if has_more else 'false'}\n")

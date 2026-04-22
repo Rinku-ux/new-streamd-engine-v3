@@ -22,6 +22,13 @@ class DataEngine:
         self.master_parquet = os.path.join(base_dir, 'streamdbi_ranking_data_master.parquet')
         self.drilldown_parquet = os.path.join(base_dir, 'streamdbi_drilldown_data_master.parquet')
         
+        # Fallback paths (e.g. if files are moved to Output during build)
+        self.output_dir = os.path.join(base_dir, 'Output')
+        self.master_csv_alt = os.path.join(self.output_dir, 'streamdbi_ranking_data_master.csv')
+        self.drilldown_csv_alt = os.path.join(self.output_dir, 'streamdbi_drilldown_data_master.csv')
+        self.master_parquet_alt = os.path.join(self.output_dir, 'streamdbi_ranking_data_master.parquet')
+        self.drilldown_parquet_alt = os.path.join(self.output_dir, 'streamdbi_drilldown_data_master.parquet')
+        
         self.zip_path = os.path.join(base_dir, 'streamdbi_data.zip')
         self.conn = None
         self._columns = []
@@ -59,7 +66,7 @@ class DataEngine:
 
         try:
             if progress_callback:
-                progress_callback(f"Downloading from {url}...")
+                progress_callback("Downloading data from Internet...")
             
             # Use a temporary file for download
             fd, temp_path = tempfile.mkstemp(suffix=".zip" if is_zip else ".csv")
@@ -172,13 +179,16 @@ class DataEngine:
         if not self.conn:
             self.initialize_db()
 
+
     def reload_master_data(self, progress_callback=None):
         """Prefer Parquet for speed, fallback to CSV with migration."""
-        return self._reload_generic(self.master_parquet, self.master_csv, "master_data", progress_callback)
+        return self._reload_generic(self.master_parquet, self.master_csv, "master_data", progress_callback) or \
+               self._reload_generic(self.master_parquet_alt, self.master_csv_alt, "master_data", progress_callback)
 
     def reload_drilldown_data(self, progress_callback=None):
         """Prefer Parquet for speed, fallback to CSV with migration."""
-        return self._reload_generic(self.drilldown_parquet, self.drilldown_csv, "drilldown_data", progress_callback)
+        return self._reload_generic(self.drilldown_parquet, self.drilldown_csv, "drilldown_data", progress_callback) or \
+               self._reload_generic(self.drilldown_parquet_alt, self.drilldown_csv_alt, "drilldown_data", progress_callback)
 
     def _reload_generic(self, parquet_path, csv_path, table_name, progress_callback=None):
         """Load from Parquet if available, otherwise CSV (and migrate)."""
@@ -452,12 +462,18 @@ class DataEngine:
             return False
     def save_to_zip(self):
         """Create a concentrated ZIP archive containing the master and drilldown CSVs."""
+        found_any = False
         try:
             with zipfile.ZipFile(self.zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
                 if os.path.exists(self.master_csv):
                     zf.write(self.master_csv, os.path.basename(self.master_csv))
+                    found_any = True
                 if os.path.exists(self.drilldown_csv):
                     zf.write(self.drilldown_csv, os.path.basename(self.drilldown_csv))
+                    found_any = True
+            
+            if not found_any:
+                print(f"[ENGINE] WARNING: No CSV files found to include in {self.zip_path}. ZIP will be empty.")
             return True
         except Exception as e:
             print(f"[ENGINE] ZIP Save Error: {e}")
