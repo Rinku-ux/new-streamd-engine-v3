@@ -74,8 +74,10 @@ async def do_sync_headless():
                 log(f"Extracting existing state from {engine.zip_path}...")
                 engine.load_from_zip(engine.zip_path, progress_callback=lambda m: log(f"[ZIP] {m}"))
                 
-        engine.reload_master_data()
-        engine.reload_drilldown_data()
+        # Only reload from disk if the ZIP extraction didn't populate the engine
+        if not engine.has_data():
+            engine.reload_master_data()
+            engine.reload_drilldown_data()
 
     rc = RedashClient(redash_url, redash_key)
     
