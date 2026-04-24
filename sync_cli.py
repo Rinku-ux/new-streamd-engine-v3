@@ -100,8 +100,16 @@ async def do_sync_headless():
     # --- Incremental Sync Logic: Skip clients who already have the latest month ---
     try:
         engine.initialize_db()
-        # Ensure local data is loaded
-        engine.reload_master_data()
+        
+        # CRITICAL FIX: Restore state from committed ZIP in GitHub Actions
+        # Since CSVs and Parquets are .gitignored, we MUST unpack the ZIP first!
+        if os.path.exists(engine.zip_path):
+            log(f"Restoring previous state from existing ZIP: {engine.zip_path}")
+            engine.load_from_zip(engine.zip_path)
+        else:
+            # Ensure local data is loaded if ZIP doesn't exist but CSVs do
+            engine.reload_master_data()
+            engine.reload_drilldown_data()
         
         # Check existing clients who HAVE data for the end_date month
         up_to_date_clients = set()
