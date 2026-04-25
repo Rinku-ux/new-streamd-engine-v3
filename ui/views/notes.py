@@ -129,10 +129,10 @@ class NotesManager:
 
 
 class NotesView(QWidget):
-    def __init__(self, base_dir, parent=None):
+    def __init__(self, engine, parent=None):
         super().__init__(parent)
         self.setObjectName("NotesView")
-        self.manager = NotesManager(base_dir)
+        self.manager = NotesManager(engine.base_dir)
         self._is_dark = True
 
         layout = QVBoxLayout(self)
