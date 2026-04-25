@@ -169,6 +169,8 @@ class DataEngine:
         self.conn = duckdb.connect(database=':memory:', config={'memory_limit': mem_str})
         logger.info(f"DuckDB initialized with memory_limit={mem_str}")
         
+        self._row_count = 0
+        self._drilldown_row_count = 0
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS master_data (
                 "取得日時" VARCHAR, "クライアントID" VARCHAR, "企業名" VARCHAR, "処理月" VARCHAR, 

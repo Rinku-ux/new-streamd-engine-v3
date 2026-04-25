@@ -99,8 +99,6 @@ async def do_sync_headless():
     
     # --- Incremental Sync Logic: Skip clients who already have the latest month ---
     try:
-        engine.initialize_db()
-        
         # Ensure data is loaded (may already be loaded from the block above at line 72-75)
         if not engine.has_data():
             if os.path.exists(engine.zip_path):
