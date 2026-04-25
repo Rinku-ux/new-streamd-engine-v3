@@ -11,6 +11,9 @@ import pandas as pd
 import requests
 import urllib.parse
 from datetime import datetime
+from core.logger import get_logger
+
+logger = get_logger("engine")
 
 
 class DataEngine:
@@ -39,6 +42,7 @@ class DataEngine:
         self.last_load_time = None
         self.sync_progress = "-- / --"
         self._load_sync_status()
+        logger.info(f"DataEngine initialized at {base_dir}")
 
     def _load_sync_status(self):
         """Load sync_status.json if it exists"""
@@ -53,7 +57,7 @@ class DataEngine:
                     if total > 0:
                         self.sync_progress = f"{offset:,} / {total:,}"
         except Exception as e:
-            print(f"[ENGINE] Failed to load sync status: {e}")
+            logger.warning(f"Failed to load sync status: {e}")
 
     def load_from_url(self, url, is_drilldown=False, progress_callback=None):
         """Download data from a URL and load it into the engine with schema validation."""
@@ -90,7 +94,7 @@ class DataEngine:
                         if os.path.exists(self.zip_path): os.remove(self.zip_path)
                         shutil.copy2(temp_path, self.zip_path)
                     except Exception as ze:
-                        print(f"[ENGINE] Failed to update local ZIP: {ze}")
+                        logger.warning(f"Failed to update local ZIP: {ze}")
                     
                     success = self.load_from_zip(temp_path, progress_callback)
                     
@@ -149,13 +153,21 @@ class DataEngine:
 
         except Exception as e:
             if progress_callback:
-                progress_callback(f"Remote load error: {e}")
-            print(f"[ENGINE] Remote load error: {e}")
+                progress_callback(f"データの読み込みに失敗しました。ネットワーク接続を確認してください。")
+            logger.error(f"Remote load error: {e}")
             return False
 
     def initialize_db(self):
         """Create in-memory DuckDB connection and ensure tables exist."""
-        self.conn = duckdb.connect(database=':memory:')
+        # Apply memory limit: 50% of physical RAM or 4GB max
+        try:
+            import psutil
+            mem_limit = min(psutil.virtual_memory().total // 2, 4 * 1024 * 1024 * 1024)
+            mem_str = f"{mem_limit // (1024*1024)}MB"
+        except ImportError:
+            mem_str = "2GB"
+        self.conn = duckdb.connect(database=':memory:', config={'memory_limit': mem_str})
+        logger.info(f"DuckDB initialized with memory_limit={mem_str}")
         
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS master_data (
@@ -190,12 +202,27 @@ class DataEngine:
         return self._reload_generic(self.drilldown_parquet, self.drilldown_csv, "drilldown_data", progress_callback) or \
                self._reload_generic(self.drilldown_parquet_alt, self.drilldown_csv_alt, "drilldown_data", progress_callback)
 
+    def _is_parquet_fresh(self, parquet_path, csv_path):
+        """Check if Parquet file is newer than its source CSV."""
+        if not os.path.exists(parquet_path):
+            return False
+        if not os.path.exists(csv_path):
+            return True  # No CSV to compare against, trust Parquet
+        try:
+            pq_mtime = os.path.getmtime(parquet_path)
+            csv_mtime = os.path.getmtime(csv_path)
+            pq_size = os.path.getsize(parquet_path)
+            # Parquet must be newer than CSV AND non-trivially sized
+            return pq_mtime >= csv_mtime and pq_size > 256
+        except OSError:
+            return False
+
     def _reload_generic(self, parquet_path, csv_path, table_name, progress_callback=None):
-        """Load from Parquet if available, otherwise CSV (and migrate)."""
+        """Load from Parquet if available and fresh, otherwise CSV (and migrate)."""
         self._ensure_conn()
 
-        # 1. Try Parquet first (10-100x faster than CSV)
-        if os.path.exists(parquet_path):
+        # 1. Try Parquet first (10-100x faster than CSV) — only if it's fresh
+        if self._is_parquet_fresh(parquet_path, csv_path):
             try:
                 if progress_callback: progress_callback(f"Loading {os.path.basename(parquet_path)}...")
                 self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
@@ -204,14 +231,16 @@ class DataEngine:
                 count = self.conn.execute(f"SELECT count(*) FROM {table_name}").fetchone()[0]
                 self._update_metadata(table_name, count, parquet_path)
                 if progress_callback: progress_callback(f"Table {table_name} ready: {count:,} rows (Parquet)")
+                logger.info(f"Loaded {table_name} from Parquet: {count:,} rows")
                 return True
             except Exception as e:
-                print(f"[ENGINE] Parquet load failed for {table_name}: {e}")
+                logger.warning(f"Parquet load failed for {table_name}: {e}")
                 # Fall through to CSV
 
         # 2. Fallback to CSV and Migrate
         if os.path.exists(csv_path):
             if progress_callback: progress_callback(f"Migrating {os.path.basename(csv_path)} to Parquet...")
+            logger.info(f"Loading {table_name} from CSV (Parquet stale or missing)")
             success = self._reload_csv(csv_path, table_name, progress_callback)
             if success:
                 # Background save to Parquet for next time
@@ -276,13 +305,14 @@ class DataEngine:
 
             return True
         except Exception as e:
-            traceback.print_exc()
+            logger.warning(f"DuckDB native load failed for {table_name}: {e}")
             # Fallback: try with pandas if DuckDB native fails (e.g. BOM encoding)
             try:
                 return self._reload_csv_pandas_fallback(csv_path, table_name, progress_callback)
             except Exception as e2:
                 if progress_callback:
-                    progress_callback(f"Load Error ({table_name}): {e2}")
+                    progress_callback(f"データの読み込みに失敗しました。ファイル形式を確認してください。")
+                logger.error(f"All load strategies failed for {table_name}: {e2}")
                 return False
 
     def _reload_csv_pandas_fallback(self, csv_path, table_name, progress_callback=None):
@@ -318,6 +348,7 @@ class DataEngine:
         try:
             # TRY R-BRIDGE for fast bulk extraction and mapping
             if self.load_from_zip_r(zip_file_path, progress_callback):
+                self.save_to_parquet()
                 return True
                 
             with zipfile.ZipFile(zip_file_path, 'r') as zf:
@@ -389,10 +420,7 @@ class DataEngine:
             rows = result.fetchall()
             return [dict(zip(columns, row)) for row in rows]
         except Exception as e:
-            try:
-                print(f"[ENGINE] Query Error: {e}")
-            except:
-                pass
+            logger.error(f"Query error: {e}")
             return []
         finally:
             self._lock.release()
@@ -410,10 +438,7 @@ class DataEngine:
             df.columns = [c.replace('\ufeff', '').strip() for c in df.columns]
             return df
         except Exception as e:
-            try:
-                print(f"[ENGINE] Query Error: {e}")
-            except:
-                pass
+            logger.error(f"Query error: {e}")
             return pd.DataFrame()
         finally:
             self._lock.release()
@@ -444,7 +469,7 @@ class DataEngine:
                 self.conn.execute(f"COPY drilldown_data TO '{self.drilldown_parquet.replace(chr(92), '/')}' (FORMAT PARQUET, COMPRESSION ZSTD)")
             return True
         except Exception as e:
-            print(f"[ENGINE] Parquet Save Error: {e}")
+            logger.error(f"Parquet save error: {e}")
             return False
 
     def save_to_csv(self):
@@ -458,7 +483,7 @@ class DataEngine:
                 self.export_query_to_csv("SELECT * FROM drilldown_data", self.drilldown_csv, r_path=r_path)
             return True
         except Exception as e:
-            print(f"[ENGINE] CSV Save Error: {e}")
+            logger.error(f"CSV save error: {e}")
             return False
     def save_to_zip(self):
         """Create a concentrated ZIP archive containing the master and drilldown CSVs."""
@@ -473,10 +498,10 @@ class DataEngine:
                     found_any = True
             
             if not found_any:
-                print(f"[ENGINE] WARNING: No CSV files found to include in {self.zip_path}. ZIP will be empty.")
+                logger.warning(f"No CSV files found to include in ZIP: {self.zip_path}")
             return True
         except Exception as e:
-            print(f"[ENGINE] ZIP Save Error: {e}")
+            logger.error(f"ZIP save error: {e}")
             return False
 
     def _find_r(self):
@@ -548,7 +573,7 @@ class DataEngine:
                 self._data_hash = f"{self._row_count}_{datetime.now().timestamp()}"
                 return True
         except Exception as e:
-            print(f"[ENGINE] Deduplication Error: {e}")
+            logger.error(f"Deduplication error: {e}")
             return False
 
     def deduplicate_r(self):
@@ -614,7 +639,7 @@ class DataEngine:
                     return True
                 return False
         except Exception as e:
-            print(f"[ENGINE-R-DEDUP] Error: {e}")
+            logger.error(f"R deduplication error: {e}")
             return False
 
     def append_data(self, data_rows, is_drilldown=False, sync_type="diff", progress_callback=None):
@@ -641,7 +666,16 @@ class DataEngine:
                 "regnum_target": "登録_対象", "regnum_correct": "登録_正解",
                 "登録番号_対象": "登録_対象", "登録番号_正解": "登録_正解"
             }
+            
+            drilldown_mapping = {
+                "journal_id": "仕訳ID",
+                "error_field": "エラー項目",
+                "initial_value": "初期値",
+                "latest_value": "修正後"
+            }
+            
             mapping.update(score_mapping)
+            mapping.update(drilldown_mapping)
             
             now_str = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
             
@@ -652,6 +686,8 @@ class DataEngine:
                 for eng, jp in mapping.items():
                     if eng in row and jp not in row:
                         row[jp] = row[eng]
+                    if jp in row and eng not in row:
+                        row[eng] = row[jp]
                 
                 if is_drilldown:
                     if "target_month" not in row and "processing_month" in row:
@@ -699,7 +735,7 @@ class DataEngine:
                     
                 return True
             except Exception as db_err:
-                print(f"[ENGINE] Direct DB Insert failed: {db_err}")
+                logger.error(f"Direct DB insert failed: {db_err}")
                 return False
 
     def reset_data(self):
@@ -777,7 +813,7 @@ class DataEngine:
                 return True
             return False
         except Exception as e:
-            print(f"[ENGINE] Export Error: {e}")
+            logger.error(f"Export error: {e}")
             return False
 
     def load_from_zip_r(self, zip_path, progress_callback=None):
@@ -816,14 +852,13 @@ class DataEngine:
                         
                 return success
         except Exception as e:
-            print(f"[ENGINE-R-ZIP] Error: {e}")
+            logger.error(f"R ZIP import error: {e}")
             return False
 
     def _run_fast_import_r(self, input_paths, table_name, progress_callback):
         """Helper to run fast_import.R on a list of files."""
         r_path = self._find_r()
         if not r_path: return False
-        
         with tempfile.TemporaryDirectory() as bridge_tmp:
             r_script_src = os.path.abspath(os.path.join(os.path.dirname(__file__), 'fast_import.R'))
             r_script_tmp = os.path.join(bridge_tmp, "import.R")
@@ -926,7 +961,7 @@ class DataEngine:
                     return True
                 return False
         except Exception as e:
-            print(f"[ENGINE-R-APPEND] Error: {e}")
+            logger.error(f"R append error: {e}")
             return False
 
     def load_from_csv_r(self, csv_path, table_name, progress_callback=None):
@@ -978,10 +1013,10 @@ class DataEngine:
                     if progress_callback: progress_callback(f"{table_name}準備完了 (R高速読込): {count:,}行")
                     return True
                 else:
-                    print(f"[ENGINE-R-IMPORT] Failed: {stderr}")
+                    logger.warning(f"R import failed: {stderr}")
                     return False
         except Exception as e:
-            print(f"[ENGINE-R-IMPORT] Error: {e}")
+            logger.error(f"R import error: {e}")
             return False
 
     def export_query_to_csv_r(self, sql_query, output_path, r_path):
@@ -1046,5 +1081,181 @@ class DataEngine:
             else:
                 return False
         except Exception as e:
-            print(f"[ENGINE-R] Error: {e}")
+            logger.error(f"R export error: {e}")
             return False
+
+    # ═══════════════ NEW: Analysis Methods ═══════════════
+
+    def get_anomaly_clients(self, threshold=-5.0):
+        """Detect clients with sudden accuracy drops (month-over-month).
+        Returns list of dicts: {client_id, enterprise_name, month, prev_accuracy, curr_accuracy, delta}
+        """
+        self._ensure_conn()
+        if self._row_count == 0:
+            return []
+        try:
+            sql = f"""
+                WITH monthly AS (
+                    SELECT
+                        "クライアントID" as cid,
+                        "企業名" as name,
+                        "処理月" as month,
+                        SUM(CAST("全体正解件数" AS FLOAT)) / NULLIF(SUM(CAST("対象仕訳数" AS FLOAT)), 0) * 100 as accuracy,
+                        SUM(CAST("対象仕訳数" AS INTEGER)) as target_vouchers
+                    FROM master_data
+                    WHERE "対象仕訳数" IS NOT NULL AND CAST("対象仕訳数" AS INTEGER) > 0
+                    GROUP BY "クライアントID", "企業名", "処理月"
+                ),
+                with_prev AS (
+                    SELECT *,
+                        LAG(accuracy) OVER (PARTITION BY cid ORDER BY month) as prev_acc,
+                        LAG(month) OVER (PARTITION BY cid ORDER BY month) as prev_month,
+                        ROW_NUMBER() OVER (PARTITION BY cid ORDER BY month DESC) as rn
+                    FROM monthly
+                )
+                SELECT cid as client_id, name as enterprise_name, month,
+                       ROUND(prev_acc, 1) as prev_accuracy,
+                       ROUND(accuracy, 1) as curr_accuracy,
+                       ROUND(accuracy - prev_acc, 1) as delta
+                FROM with_prev
+                WHERE prev_acc IS NOT NULL 
+                  AND (accuracy - prev_acc) <= {threshold}
+                  AND rn = 1
+                  AND target_vouchers >= 20
+                ORDER BY (accuracy - prev_acc) ASC
+                LIMIT 50
+            """
+            return self.query(sql)
+        except Exception as e:
+            logger.error(f"Anomaly detection error: {e}")
+            return []
+
+    def get_heatmap_data(self, metric="overall", limit=100):
+        """Get client x month matrix data for heatmap visualization.
+        Returns DataFrame with clients as rows, months as columns, values as accuracy %.
+        """
+        self._ensure_conn()
+        if self._row_count == 0:
+            return pd.DataFrame()
+        try:
+            from ui.views.dashboard import METRIC_DEFS_ORDERED
+            target_col, correct_col = "対象仕訳数", "全体正解件数"
+            for code, label, t, c in METRIC_DEFS_ORDERED:
+                if code == metric:
+                    target_col, correct_col = t, c
+                    break
+
+            sql = f"""
+                SELECT "クライアントID", "企業名", "処理月",
+                       ROUND(SUM(CAST("{correct_col}" AS FLOAT)) / NULLIF(SUM(CAST("{target_col}" AS FLOAT)), 0) * 100, 1) as accuracy
+                FROM master_data
+                WHERE "{target_col}" IS NOT NULL AND CAST("{target_col}" AS INTEGER) > 0
+                GROUP BY "クライアントID", "企業名", "処理月"
+                ORDER BY "企業名", "処理月"
+            """
+            df = self.query_df(sql)
+            if df.empty:
+                return df
+            # Pivot to matrix form
+            pivot = df.pivot_table(
+                index=["クライアントID", "企業名"],
+                columns="処理月",
+                values="accuracy",
+                aggfunc="first"
+            )
+            # Limit rows (0 = no limit)
+            return pivot if limit <= 0 else pivot.head(limit)
+        except Exception as e:
+            logger.error(f"Heatmap data error: {e}")
+            return pd.DataFrame()
+
+    def get_comparison_data(self, period_a_start, period_a_end, period_b_start, period_b_end):
+        """Compare two time periods. Returns dict with stats for each period."""
+        self._ensure_conn()
+        if self._row_count == 0:
+            return {"a": {}, "b": {}}
+        try:
+            def _get_period_stats(start, end):
+                sql = f"""
+                    SELECT
+                        COUNT(DISTINCT "クライアントID") as clients,
+                        SUM(CAST("対象仕訳数" AS INTEGER)) as total_vouchers,
+                        SUM(CAST("全体正解件数" AS INTEGER)) as total_correct,
+                        ROUND(SUM(CAST("全体正解件数" AS FLOAT)) / NULLIF(SUM(CAST("対象仕訳数" AS FLOAT)), 0) * 100, 2) as accuracy
+                    FROM master_data
+                    WHERE "処理月" >= '{start}' AND "処理月" <= '{end}'
+                    AND "対象仕訳数" IS NOT NULL AND CAST("対象仕訳数" AS INTEGER) > 0
+                """
+                rows = self.query(sql)
+                return rows[0] if rows else {}
+
+            return {
+                "a": _get_period_stats(period_a_start, period_a_end),
+                "b": _get_period_stats(period_b_start, period_b_end),
+            }
+        except Exception as e:
+            logger.error(f"Comparison data error: {e}")
+            return {"a": {}, "b": {}}
+
+    def get_client_detail(self, client_id):
+        """Get comprehensive detail for a single client across all metrics."""
+        self._ensure_conn()
+        if self._row_count == 0:
+            return {"summary": {}, "monthly": pd.DataFrame(), "drilldown": pd.DataFrame()}
+        try:
+            # Summary stats
+            summary_sql = f"""
+                SELECT
+                    ANY_VALUE("企業名") as enterprise_name,
+                    COUNT(DISTINCT "処理月") as month_count,
+                    SUM(CAST("対象仕訳数" AS INTEGER)) as total_vouchers,
+                    SUM(CAST("全体正解件数" AS INTEGER)) as total_correct,
+                    ROUND(SUM(CAST("全体正解件数" AS FLOAT)) / NULLIF(SUM(CAST("対象仕訳数" AS FLOAT)), 0) * 100, 2) as overall_accuracy
+                FROM master_data
+                WHERE "クライアントID" = '{client_id}'
+                AND "対象仕訳数" IS NOT NULL AND CAST("対象仕訳数" AS INTEGER) > 0
+            """
+            summary_rows = self.query(summary_sql)
+            summary = summary_rows[0] if summary_rows else {}
+
+            # Monthly breakdown with all metrics
+            monthly_sql = f"""
+                SELECT "処理月", "証憑タイプ",
+                    CAST("対象仕訳数" AS INTEGER) as "対象仕訳数",
+                    CAST("全体正解件数" AS INTEGER) as "全体正解件数",
+                    ROUND(CAST("全体正解件数" AS FLOAT) / NULLIF(CAST("対象仕訳数" AS FLOAT), 0) * 100, 1) as "総合精度",
+                    ROUND(CAST("日付_正解" AS FLOAT) / NULLIF(CAST("日付_対象" AS FLOAT), 0) * 100, 1) as "日付精度",
+                    ROUND(CAST("金額_正解" AS FLOAT) / NULLIF(CAST("金額_対象" AS FLOAT), 0) * 100, 1) as "金額精度",
+                    ROUND(CAST("科目_正解" AS FLOAT) / NULLIF(CAST("科目_対象" AS FLOAT), 0) * 100, 1) as "科目精度",
+                    ROUND(CAST("支払先_正解" AS FLOAT) / NULLIF(CAST("支払先_対象" AS FLOAT), 0) * 100, 1) as "支払先精度",
+                    ROUND(CAST("税区分_正解" AS FLOAT) / NULLIF(CAST("税区分_対象" AS FLOAT), 0) * 100, 1) as "税区分精度",
+                    ROUND(CAST("登録_正解" AS FLOAT) / NULLIF(CAST("登録_対象" AS FLOAT), 0) * 100, 1) as "登録精度",
+                    ROUND(CAST("内容_正解" AS FLOAT) / NULLIF(CAST("内容_対象" AS FLOAT), 0) * 100, 1) as "内容精度"
+                FROM master_data
+                WHERE "クライアントID" = '{client_id}'
+                ORDER BY "処理月" DESC
+            """
+            monthly_df = self.query_df(monthly_sql)
+
+            # Drilldown errors
+            dd_sql = f"""
+                SELECT "target_month" as "月", "voucher_type" as "証憑タイプ",
+                       "error_field" as "項目", "initial_value" as "初期値", "latest_value" as "修正後"
+                FROM drilldown_data
+                WHERE "client_id" = '{client_id}'
+                ORDER BY "target_month" DESC
+                LIMIT 1000
+            """
+            try:
+                dd_df = self.query_df(dd_sql)
+            except Exception:
+                dd_df = pd.DataFrame()
+
+            return {
+                "summary": summary,
+                "monthly": monthly_df,
+                "drilldown": dd_df,
+            }
+        except Exception as e:
+            logger.error(f"Client detail error: {e}")
+            return {"summary": {}, "monthly": pd.DataFrame(), "drilldown": pd.DataFrame()}
