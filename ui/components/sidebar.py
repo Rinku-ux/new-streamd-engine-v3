@@ -66,6 +66,9 @@ class Sidebar(QWidget):
         self.items = {}
         self.add_nav_item("dashboard", "Dashboard", Icons.DASHBOARD)
         self.add_nav_item("ranking", "Data Table", Icons.TABLE) # Maps to NavItem_table in QSS
+        self.add_nav_item("heatmap", "Heatmap", Icons.HEATMAP)
+        self.add_nav_item("comparison", "Comparison", Icons.COMPARE)
+        self.add_nav_item("notes", "Notes", Icons.NOTES)
         self.add_nav_item("sync", "Sync", Icons.SYNC)
         self.add_nav_item("codemap", "Code Map", Icons.CODEMAP) # Maps to NavItem_book in QSS
         self.add_nav_item("settings", "Settings", Icons.SETTINGS)
@@ -105,6 +108,9 @@ class Sidebar(QWidget):
             "codemap": "book",
             "sync": "sync",
             "dashboard": "dashboard",
+            "heatmap": "dashboard", # Re-use dashboard hover style
+            "comparison": "dashboard",
+            "notes": "book",
             "settings": "settings"
         }
         css_id = mapping.get(view_id, view_id)

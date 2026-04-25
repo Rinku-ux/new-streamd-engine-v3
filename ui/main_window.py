@@ -385,12 +385,20 @@ class MainWindow(QMainWindow):
             
         from ui.views.dashboard import DashboardView
         from ui.views.ranking import RankingView
+        from ui.views.heatmap import HeatmapView
+        from ui.views.comparison import ComparisonView
+        from ui.views.notes import NotesView
+        from ui.views.client_detail import ClientDetailView
         from ui.views.sync import SyncView
         from ui.views.codemap import CodeMapView
         from ui.views.settings import SettingsView
         
         self.views["dashboard"] = DashboardView(self.engine)
         self.views["ranking"] = RankingView(self.config, self.engine)
+        self.views["heatmap"] = HeatmapView(self.engine)
+        self.views["comparison"] = ComparisonView(self.engine)
+        self.views["notes"] = NotesView(self.engine)
+        self.views["client_detail"] = ClientDetailView(self.engine)
         self.views["sync"] = SyncView(self.config, self.engine)
         self.views["codemap"] = CodeMapView(self.config)
         self.views["settings"] = SettingsView(self.config)
@@ -429,11 +437,12 @@ class MainWindow(QMainWindow):
                 view.refresh()
 
     def _on_client_selected(self, client_id, enterprise_name):
-        if "dashboard" in self.views:
-            dashboard = self.views["dashboard"]
-            if hasattr(dashboard, "show_client_trend"):
-                dashboard.show_client_trend(client_id, enterprise_name)
-            self.sidebar.set_active_item("dashboard")
+        if "client_detail" in self.views:
+            self._cleanup_tooltips()
+            self.views["client_detail"].show_client(client_id, enterprise_name)
+            self.content_stack.setCurrentWidget(self.views["client_detail"])
+            # (Sidebar won't have a direct item for this, but we can set Dashboard as active or leave as is)
+            self.sidebar.set_active_item(None) # Or add a 'hidden' state if needed
 
     def _on_dashboard_point_clicked(self, filters):
         if "ranking" not in self.views:
