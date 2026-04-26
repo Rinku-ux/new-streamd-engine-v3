@@ -464,8 +464,8 @@ class MainWindow(QMainWindow):
             clause = "WHERE " + " AND ".join(where_parts)
             ranking_view.search_input.setText(clause)
             
-        if ranking_view.is_summary_mode:
-            ranking_view.set_mode(False)
+        if ranking_view.mode == "summary":
+            ranking_view.set_mode("detail")
         else:
             ranking_view.refresh()
 

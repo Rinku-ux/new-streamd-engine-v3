@@ -294,7 +294,7 @@ class RankingView(QWidget):
         self.current_page = 1
         self.per_page = 100
         self.total_count = 0
-        self.is_summary_mode = True # Default to folded view
+        self.mode = "summary" # "summary", "detail", or "drilldown"
         self.current_client_id = None
         self._export_worker = None
 
@@ -323,23 +323,21 @@ class RankingView(QWidget):
         # Mode Selection
         mode_layout = QHBoxLayout()
         mode_layout.setSpacing(0)
-        self.btn_summary = QPushButton("企業別集計 (折り畳み)")
+        self.btn_summary = QPushButton("企業別集計")
         self.btn_detail = QPushButton("詳細 (月別)")
+        self.btn_drilldown = QPushButton("ドリルダウン (全件)")
         
-        mode_style = """
-            QPushButton {{
-                background-color: {bg}; color: {fg}; border: 1px solid {"#334155" if is_dark else "#E2E8F0"};
-                padding: 6px 16px; font-size: 11px; font-weight: 700;
-            }}
-            QPushButton#left {{ border-top-left-radius: 6px; border-bottom-left-radius: 6px; }}
-            QPushButton#right {{ border-top-right-radius: 6px; border-bottom-right-radius: 6px; border-left: none; }}
-        """
         self.btn_summary.setObjectName("ModeBtnLeft")
-        self.btn_detail.setObjectName("ModeBtnRight")
-        self.btn_summary.clicked.connect(lambda: self.set_mode(True))
-        self.btn_detail.clicked.connect(lambda: self.set_mode(False))
+        self.btn_detail.setObjectName("ModeBtnCenter")
+        self.btn_drilldown.setObjectName("ModeBtnRight")
+        
+        self.btn_summary.clicked.connect(lambda: self.set_mode("summary"))
+        self.btn_detail.clicked.connect(lambda: self.set_mode("detail"))
+        self.btn_drilldown.clicked.connect(lambda: self.set_mode("drilldown"))
+        
         mode_layout.addWidget(self.btn_summary)
         mode_layout.addWidget(self.btn_detail)
+        mode_layout.addWidget(self.btn_drilldown)
         header_layout.addLayout(mode_layout)
 
         # CSV Export Button
@@ -549,8 +547,8 @@ class RankingView(QWidget):
             
         return df
 
-    def set_mode(self, summary):
-        self.is_summary_mode = summary
+    def set_mode(self, mode):
+        self.mode = mode
         self.current_page = 1
         self.update_mode_ui()
         self.refresh()
@@ -577,8 +575,11 @@ class RankingView(QWidget):
         active_s = f"background-color: {active_bg}; color: {active_fg}; border-color: {active_bg};"
         inactive_s = f"background-color: {inactive_bg}; color: {inactive_fg}; border-color: {inactive_border};"
 
-        self.btn_summary.setStyleSheet(f"QPushButton {{ padding: 6px 16px; font-size: 11px; font-weight: 700; border-top-left-radius: 6px; border-bottom-left-radius: 6px; {active_s if self.is_summary_mode else inactive_s} }}")
-        self.btn_detail.setStyleSheet(f"QPushButton {{ padding: 6px 16px; font-size: 11px; font-weight: 700; border-top-right-radius: 6px; border-bottom-right-radius: 6px; border-left: none; {active_s if not self.is_summary_mode else inactive_s} }}")
+        common_style = "padding: 6px 16px; font-size: 11px; font-weight: 700;"
+        
+        self.btn_summary.setStyleSheet(f"QPushButton {{ {common_style} border-top-left-radius: 6px; border-bottom-left-radius: 6px; {active_s if self.mode == 'summary' else inactive_s} }}")
+        self.btn_detail.setStyleSheet(f"QPushButton {{ {common_style} border-left: none; {active_s if self.mode == 'detail' else inactive_s} }}")
+        self.btn_drilldown.setStyleSheet(f"QPushButton {{ {common_style} border-top-right-radius: 6px; border-bottom-right-radius: 6px; border-left: none; {active_s if self.mode == 'drilldown' else inactive_s} }}")
 
     def prev_page(self):
         if self.current_page > 1:
@@ -611,7 +612,7 @@ class RankingView(QWidget):
 
         offset = (self.current_page - 1) * self.per_page
         
-        if self.is_summary_mode:
+        if self.mode == "summary":
             sql = f"""
                 SELECT 
                     "クライアントID", "企業名", 
@@ -624,8 +625,12 @@ class RankingView(QWidget):
                 ORDER BY "対象仕訳数_計" DESC
                 LIMIT {self.per_page} OFFSET {offset}
             """
-        else:
+        elif self.mode == "detail":
             sql = f"SELECT * FROM master_data {where_clause} ORDER BY \"企業名\", \"処理月\" DESC LIMIT {self.per_page} OFFSET {offset}"
+        else: # drilldown
+            # Map where clause fields if needed
+            dd_where = where_clause.replace("\"クライアントID\"", "\"client_id\"").replace("\"処理月\"", "\"target_month\"").replace("\"証憑タイプ\"", "\"voucher_type\"")
+            sql = f'SELECT * FROM drilldown_data {dd_where} ORDER BY "target_month" DESC LIMIT {self.per_page} OFFSET {offset}'
 
         try:
             df = self.engine.query_df(sql)
@@ -785,7 +790,7 @@ class RankingView(QWidget):
             if where_clause and not any(where_clause.upper().startswith(k) for k in ["WHERE", "ORDER", "GROUP", "LIMIT"]):
                 where_clause = f"WHERE {where_clause}"
             
-            if self.is_summary_mode:
+            if self.mode == "summary":
                 sql = f"""
                     SELECT 
                         "クライアントID", "企業名", 
@@ -797,8 +802,11 @@ class RankingView(QWidget):
                     GROUP BY "クライアントID", "企業名"
                     ORDER BY "対象仕訳数_計" DESC
                 """
-            else:
+            elif self.mode == "detail":
                 sql = f'SELECT * FROM master_data {where_clause} ORDER BY "企業名", "処理月" DESC'
+            else: # drilldown
+                dd_where = where_clause.replace("\"クライアントID\"", "\"client_id\"").replace("\"処理月\"", "\"target_month\"").replace("\"証憑タイプ\"", "\"voucher_type\"")
+                sql = f'SELECT * FROM drilldown_data {dd_where} ORDER BY "target_month" DESC'
             
             self.export_btn.setEnabled(False)
             self.progress_overlay.show_with_status("エクスポートデータを準備中...")

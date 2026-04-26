@@ -145,6 +145,16 @@ QPushButton#DangerBtn {
 QPushButton#DangerBtn:hover { background-color: #B91C1C; }
 QPushButton#DangerBtn:disabled { background-color: #1E293B; color: #475569; }
 
+/* --- Mode Switcher --- */
+QPushButton#ModeBtnLeft, QPushButton#ModeBtnCenter, QPushButton#ModeBtnRight {
+    padding: 6px 16px;
+    font-size: 11px;
+    font-weight: 700;
+}
+QPushButton#ModeBtnLeft { border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+QPushButton#ModeBtnCenter { border-left: none; }
+QPushButton#ModeBtnRight { border-top-right-radius: 6px; border-bottom-right-radius: 6px; border-left: none; }
+
 QPushButton#InfoBtn {
     background-color: #2563EB;
     color: white;
