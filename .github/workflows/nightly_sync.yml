@@ -66,7 +66,7 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add streamdbi_data.zip sync_status.json
+          git add sync_status.json  # ← zipを外し、jsonだけ残す
           git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')" || exit 0
           git push
 
