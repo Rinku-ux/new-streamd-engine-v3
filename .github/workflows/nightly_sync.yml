@@ -77,15 +77,16 @@ jobs:
           git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')" || exit 0
           git push
 
-      # ▼ 新規追加: 完成した巨大なzipファイルをGitHub Releasesに上書きアップロードする
+      # ▼ 修正箇所: 'latest'リリースの有無を判定し、新規作成か上書きアップロードを行う
       - name: Update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create latest streamdbi_data.zip \
-            --title "Latest Sync Data" \
-            --notes "Auto-generated nightly data sync." \
-            --clobber
+          if gh release view latest > /dev/null 2>&1; then
+            gh release upload latest streamdbi_data.zip --clobber
+          else
+            gh release create latest streamdbi_data.zip --title "Latest Sync Data" --notes "Auto-generated nightly data sync."
+          fi
 
       - name: Trigger next run if more work remains
         if: steps.sync_step.outputs.has_more == 'true'
