@@ -2,19 +2,24 @@ name: Nightly Data Sync
 
 concurrency:
   group: sync-${{ github.ref }}
+  # 前runが次runを呼ぶ「直列バケツリレー」のため、falseが最適解
   cancel-in-progress: false
 
 on:
   schedule:
     - cron: '0 18 * * *' # 03:00 JST
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
     inputs:
       sync_limit:
         description: 'Maximum number of clients to process'
         required: false
-        default: 'None'
+        default: '20000'
       sync_offset:
         description: 'Number of clients to skip'
+        required: false
+        default: '0'
+      depth:
+        description: 'Recursion depth to prevent infinite loops'
         required: false
         default: '0'
 
@@ -38,12 +43,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # ▼ 新規追加: Python実行前に、前回（昨日）の最新zipをReleasesからダウンロードする
       - name: Download previous zip
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release download latest -n streamdbi_data.zip || echo "No previous release found, starting fresh."
+          # キャッシュ専用タグ 'sync-cache' を使用
+          gh release download sync-cache -n streamdbi_data.zip || echo "No previous release found, starting fresh."
 
       - name: Run Sync Script
         id: sync_step
@@ -55,7 +60,7 @@ jobs:
           REDASH_Q1011: '1011'
           SYNC_TARGET: 'full'
           SYNC_MODE: 'diff'
-          SYNC_LIMIT: ${{ github.event.inputs.sync_limit != 'None' && github.event.inputs.sync_limit || '20000' }}
+          SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '20000' }}
           SYNC_OFFSET: ${{ github.event.inputs.sync_offset || '0' }}
         run: python sync_cli.py
 
@@ -63,35 +68,47 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: streamdbi-latest-data
-          path: |
-            *.csv
-            *.parquet
-            *.zip
+          path: streamdbi_data.zip
 
-      # ▼ 修正箇所: 100MBの壁を回避するため、Gitには進捗のjsonだけをコミットする
       - name: Commit and push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add sync_status.json
-          git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')" || exit 0
-          git push
+          
+          # ファイル存在確認 & race condition対策のrebase
+          [ -f sync_status.json ] && git add sync_status.json
+          git diff --staged --quiet || (git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')" && git pull --rebase && git push)
 
-      # ▼ 修正箇所: 'latest'リリースの有無を判定し、新規作成か上書きアップロードを行う
       - name: Update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view latest > /dev/null 2>&1; then
-            gh release upload latest streamdbi_data.zip --clobber
+          if gh release view sync-cache > /dev/null 2>&1; then
+            gh release upload sync-cache streamdbi_data.zip --clobber
           else
-            gh release create latest streamdbi_data.zip --title "Latest Sync Data" --notes "Auto-generated nightly data sync."
+            gh release create sync-cache streamdbi_data.zip --title "Sync Data Cache" --notes "Internal cache for nightly data sync."
           fi
 
       - name: Trigger next run if more work remains
         if: steps.sync_step.outputs.has_more == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT_DEPTH: ${{ github.event.inputs.depth }}
+          SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '20000' }}
         run: |
-          echo "Sync not finished. Triggering next chunk with offset ${{ steps.sync_step.outputs.next_offset }}..."
-          gh workflow run nightly_sync.yml -f sync_offset=${{ steps.sync_step.outputs.next_offset }}
+          # 変数空文字時のエラーを防止
+          SAFE_DEPTH=${CURRENT_DEPTH:-0}
+          
+          if [ "$SAFE_DEPTH" -ge 20 ]; then
+            echo "::error::Max recursion depth reached ($SAFE_DEPTH). Stopping to prevent infinite loop."
+            exit 1
+          fi
+          
+          NEXT_DEPTH=$(( SAFE_DEPTH + 1 ))
+          echo "Sync not finished. Triggering next chunk (Offset: ${{ steps.sync_step.outputs.next_offset }}, Depth: $NEXT_DEPTH)..."
+          
+          # 堅牢化のため Workflow name で発火
+          gh workflow run "Nightly Data Sync" \
+            -f sync_offset=${{ steps.sync_step.outputs.next_offset }} \
+            -f depth=$NEXT_DEPTH \
+            -f sync_limit="$SYNC_LIMIT"
