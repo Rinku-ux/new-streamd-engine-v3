@@ -38,6 +38,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # ▼ 新規追加: Python実行前に、前回（昨日）の最新zipをReleasesからダウンロードする
+      - name: Download previous zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download latest -n streamdbi_data.zip || echo "No previous release found, starting fresh."
+
       - name: Run Sync Script
         id: sync_step
         env:
@@ -61,14 +68,24 @@ jobs:
             *.parquet
             *.zip
 
-      # Commit to repository to provide stable URLs
+      # ▼ 修正箇所: 100MBの壁を回避するため、Gitには進捗のjsonだけをコミットする
       - name: Commit and push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add sync_status.json  # ← zipを外し、jsonだけ残す
+          git add sync_status.json
           git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')" || exit 0
           git push
+
+      # ▼ 新規追加: 完成した巨大なzipファイルをGitHub Releasesに上書きアップロードする
+      - name: Update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create latest streamdbi_data.zip \
+            --title "Latest Sync Data" \
+            --notes "Auto-generated nightly data sync." \
+            --clobber
 
       - name: Trigger next run if more work remains
         if: steps.sync_step.outputs.has_more == 'true'
