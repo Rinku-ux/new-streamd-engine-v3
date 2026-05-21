@@ -77,7 +77,9 @@ jobs:
           
           # ファイル存在確認 & race condition対策のrebase
           [ -f sync_status.json ] && git add sync_status.json
-          git diff --staged --quiet || (git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')" && git pull --rebase && git push)
+          
+          # 変更: unstagedなファイル（生成されたzip等）を一時退避してPullする --autostash を追加
+          git diff --staged --quiet || (git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')" && git pull --rebase --autostash && git push)
 
       - name: Update GitHub Release
         env:
