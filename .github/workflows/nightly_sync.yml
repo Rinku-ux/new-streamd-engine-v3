@@ -13,7 +13,7 @@ on:
       sync_limit:
         description: 'Maximum number of clients to process'
         required: false
-        default: '20000'
+        default: '10000'
       sync_offset:
         description: 'Number of clients to skip'
         required: false
@@ -60,7 +60,7 @@ jobs:
           REDASH_Q1011: '1011'
           SYNC_TARGET: 'full'
           SYNC_MODE: 'diff'
-          SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '20000' }}
+          SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '10000' }}
           SYNC_OFFSET: ${{ github.event.inputs.sync_offset || '0' }}
         run: python sync_cli.py
 
@@ -96,7 +96,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CURRENT_DEPTH: ${{ github.event.inputs.depth }}
-          SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '20000' }}
+          SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '10000' }}
         run: |
           # 変数空文字時のエラーを防止
           SAFE_DEPTH=${CURRENT_DEPTH:-0}
