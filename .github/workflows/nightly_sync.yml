@@ -91,7 +91,7 @@ jobs:
             gh release create sync-cache streamdbi_data.zip --title "Sync Data Cache" --notes "Internal cache for nightly data sync."
           fi
 
-      - name: Trigger next run if more work remains
+- name: Trigger next run if more work remains
         if: steps.sync_step.outputs.has_more == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -101,7 +101,8 @@ jobs:
           # 変数空文字時のエラーを防止
           SAFE_DEPTH=${CURRENT_DEPTH:-0}
           
-          if [ "$SAFE_DEPTH" -ge 20 ]; then
+          # ▼ ここを 20 から 40 に変更！
+          if [ "$SAFE_DEPTH" -ge 40 ]; then
             echo "::error::Max recursion depth reached ($SAFE_DEPTH). Stopping to prevent infinite loop."
             exit 1
           fi
