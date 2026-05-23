@@ -8,16 +8,19 @@ concurrency:
 on:
   schedule:
     - cron: '0 18 * * *' # 03:00 JST
+
   workflow_dispatch:
     inputs:
       sync_limit:
         description: 'Maximum number of clients to process'
         required: false
         default: '10000'
+
       sync_offset:
         description: 'Number of clients to skip'
         required: false
         default: '0'
+
       depth:
         description: 'Recursion depth to prevent infinite loops'
         required: false
@@ -26,9 +29,11 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
       actions: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -58,11 +63,15 @@ jobs:
           REDASH_Q993: '993'
           REDASH_Q994: '1004'
           REDASH_Q1011: '1011'
+
           SYNC_TARGET: 'full'
           SYNC_MODE: 'diff'
+
           SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '10000' }}
           SYNC_OFFSET: ${{ github.event.inputs.sync_offset || '0' }}
-        run: python sync_cli.py
+
+        run: |
+          python sync_cli.py
 
       - name: Upload Sync Results
         uses: actions/upload-artifact@v4
@@ -74,12 +83,21 @@ jobs:
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # ファイル存在確認 & race condition対策のrebase
+
+          # sync_status.json が存在する場合のみ add
           [ -f sync_status.json ] && git add sync_status.json
-          
-          # 変更: unstagedなファイル（生成されたzip等）を一時退避してPullする --autostash を追加
-          git diff --staged --quiet || (git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')" && git pull --rebase --autostash && git push)
+
+          # staged changes がある場合のみ commit/push
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-sync: Intermediate update $(date +'%H:%M')"
+
+            # race condition 対策
+            git pull --rebase --autostash
+
+            git push
+          else
+            echo "No changes to commit."
+          fi
 
       - name: Update GitHub Release
         env:
@@ -88,30 +106,34 @@ jobs:
           if gh release view sync-cache > /dev/null 2>&1; then
             gh release upload sync-cache streamdbi_data.zip --clobber
           else
-            gh release create sync-cache streamdbi_data.zip --title "Sync Data Cache" --notes "Internal cache for nightly data sync."
+            gh release create sync-cache streamdbi_data.zip \
+              --title "Sync Data Cache" \
+              --notes "Internal cache for nightly data sync."
           fi
 
-- name: Trigger next run if more work remains
+      - name: Trigger next run if more work remains
         if: steps.sync_step.outputs.has_more == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CURRENT_DEPTH: ${{ github.event.inputs.depth }}
+          CURRENT_DEPTH: ${{ github.event.inputs.depth || '0' }}
           SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '10000' }}
         run: |
-          # 変数空文字時のエラーを防止
+          # 空文字対策
           SAFE_DEPTH=${CURRENT_DEPTH:-0}
-          
-          # ▼ ここを 20 から 40 に変更！
+
+          # 無限ループ防止
           if [ "$SAFE_DEPTH" -ge 40 ]; then
-            echo "::error::Max recursion depth reached ($SAFE_DEPTH). Stopping to prevent infinite loop."
+            echo "::error::Max recursion depth reached ($SAFE_DEPTH)."
             exit 1
           fi
-          
-          NEXT_DEPTH=$(( SAFE_DEPTH + 1 ))
-          echo "Sync not finished. Triggering next chunk (Offset: ${{ steps.sync_step.outputs.next_offset }}, Depth: $NEXT_DEPTH)..."
-          
-          # 堅牢化のため Workflow name で発火
+
+          NEXT_DEPTH=$((SAFE_DEPTH + 1))
+
+          echo "Sync not finished."
+          echo "Next Offset: ${{ steps.sync_step.outputs.next_offset }}"
+          echo "Next Depth: $NEXT_DEPTH"
+
           gh workflow run "Nightly Data Sync" \
-            -f sync_offset=${{ steps.sync_step.outputs.next_offset }} \
-            -f depth=$NEXT_DEPTH \
+            -f sync_offset="${{ steps.sync_step.outputs.next_offset }}" \
+            -f depth="$NEXT_DEPTH" \
             -f sync_limit="$SYNC_LIMIT"
