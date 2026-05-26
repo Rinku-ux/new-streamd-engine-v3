@@ -2,7 +2,6 @@ name: Nightly Data Sync
 
 concurrency:
   group: sync-${{ github.ref }}
-  # 前runが次runを呼ぶ「直列バケツリレー」のため、falseが最適解
   cancel-in-progress: false
 
 on:
@@ -14,15 +13,10 @@ on:
       sync_limit:
         description: 'Maximum number of clients to process'
         required: false
-        default: '10000'
+        default: '300000' # 全件一括処理のためデフォルトを30万に変更
 
       sync_offset:
         description: 'Number of clients to skip'
-        required: false
-        default: '0'
-
-      depth:
-        description: 'Recursion depth to prevent infinite loops'
         required: false
         default: '0'
 
@@ -67,7 +61,7 @@ jobs:
           SYNC_TARGET: 'full'
           SYNC_MODE: 'diff'
 
-          SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '10000' }}
+          SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '300000' }}
           SYNC_OFFSET: ${{ github.event.inputs.sync_offset || '0' }}
 
         run: |
@@ -110,30 +104,3 @@ jobs:
               --title "Sync Data Cache" \
               --notes "Internal cache for nightly data sync."
           fi
-
-      - name: Trigger next run if more work remains
-        if: steps.sync_step.outputs.has_more == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CURRENT_DEPTH: ${{ github.event.inputs.depth || '0' }}
-          SYNC_LIMIT: ${{ github.event.inputs.sync_limit || '10000' }}
-        run: |
-          # 空文字対策
-          SAFE_DEPTH=${CURRENT_DEPTH:-0}
-
-          # 無限ループ防止
-          if [ "$SAFE_DEPTH" -ge 40 ]; then
-            echo "::error::Max recursion depth reached ($SAFE_DEPTH)."
-            exit 1
-          fi
-
-          NEXT_DEPTH=$((SAFE_DEPTH + 1))
-
-          echo "Sync not finished."
-          echo "Next Offset: ${{ steps.sync_step.outputs.next_offset }}"
-          echo "Next Depth: $NEXT_DEPTH"
-
-          gh workflow run "Nightly Data Sync" \
-            -f sync_offset="${{ steps.sync_step.outputs.next_offset }}" \
-            -f depth="$NEXT_DEPTH" \
-            -f sync_limit="$SYNC_LIMIT"
